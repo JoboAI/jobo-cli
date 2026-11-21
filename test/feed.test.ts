@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { TransportRequest } from "@jobo-ai/connector-core";
@@ -152,7 +152,7 @@ describe("jobo feed cursor persistence", () => {
         return backend(request);
       },
     });
-    expect(await h.run("feed", "--all", "--batch-size", "100", "--cursor-file", "feed.cursor")).toBe(0);
+    expect(await h.run("feed", "--all", "--yes", "--batch-size", "100", "--cursor-file", "feed.cursor")).toBe(0);
     expect(observed).toEqual([null, "c100", "c200"]);
     expect(existsSync(join(h.cwd, "feed.cursor"))).toBe(false);
     expect(h.stderr()).toContain("feed complete");
@@ -169,7 +169,7 @@ describe("jobo feed cursor persistence", () => {
       savedAtWrite.push(existsSync(path) ? Number(readFileSync(path, "utf8").trim().slice(1)) : 0);
       await write(chunk);
     };
-    expect(await h.run("feed", "--all", "--batch-size", "100", "--cursor-file", "feed.cursor")).toBe(0);
+    expect(await h.run("feed", "--all", "--yes", "--batch-size", "100", "--cursor-file", "feed.cursor")).toBe(0);
     expect(savedAtWrite).toEqual([0, 100, 200]);
   });
 
@@ -249,7 +249,7 @@ describe("jobo feed errors", () => {
           top_up_url: "https://enterprise.jobo.world/credits?topup=10&src=api_402",
         }),
     });
-    expect(await h.run("feed", "--all")).toBe(4);
+    expect(await h.run("feed", "--all", "--sources", "greenhouse")).toBe(4);
     expect(h.requests).toHaveLength(1);
     expect(h.stderr()).toContain("https://enterprise.jobo.world/credits?topup=10&src=api_402");
     expect(h.stderr()).toContain("--batch-size");
@@ -279,5 +279,127 @@ describe("jobo feed errors", () => {
     const h = harness({ env, responder: feed(10) });
     await h.run("feed", "--max", "5", "--body", '{"sources":["lever"],"stable_scan":true}', "--sources", "greenhouse");
     expect(h.body()).toEqual({ sources: ["greenhouse"], stable_scan: true, batch_size: 5 });
+  });
+
+  it("reads --body from a file", async () => {
+    const h = harness({ env, responder: feed(10) });
+    writeFileSync(join(h.cwd, "feed.json"), '{"job_subcategories":{"include":["Nursing"]}}');
+    expect(await h.run("feed", "--max", "5", "--body", "@feed.json")).toBe(0);
+    expect(h.body()).toEqual({ job_subcategories: { include: ["Nursing"] }, batch_size: 5 });
+  });
+
+  it("says so when the --body file is not there, as a usage error and before any request", async () => {
+    const h = harness({ env, responder: feed(10) });
+    expect(await h.run("feed", "--max", "5", "--body", "@missing.json")).toBe(2);
+    expect(h.requests).toHaveLength(0);
+    expect(h.stderr()).toContain(`--body @missing.json: cannot read ${join(h.cwd, "missing.json")}: there is no such file.`);
+    expect(h.stderr()).not.toContain("ENOENT");
+    expect(h.stderr()).toContain("Run `jobo feed --help` for usage.");
+
+    mkdirSync(join(h.cwd, "a-directory"));
+    expect(await h.run("feed", "--max", "5", "--body", "@a-directory")).toBe(2);
+    expect(h.stderr()).toContain("it is a directory");
+  });
+});
+
+describe("jobo feed --all on the whole index", () => {
+  /** The free vocabulary call answers with the index's size; anything else is the feed. */
+  function index(sources: Array<{ key: string; count: number }> | null, total = 10) {
+    const backend = feed(total);
+    return (request: TransportRequest) => {
+      if (request.method === "GET" && new URL(request.url).pathname === "/api/connectors/filters") {
+        return sources ? json(200, { enums: {}, sources }) : json(500, { title: "Server error" });
+      }
+      return backend(request);
+    };
+  }
+  const eightMillion = [
+    { key: "workday", count: 5_000_000 },
+    { key: "greenhouse", count: 2_500_000 },
+    { key: "lever_co", count: 512_345 },
+  ];
+
+  it("refuses without --yes, quoting the job count and the most it could cost", async () => {
+    const h = harness({ env, responder: index(eightMillion) });
+    expect(await h.run("feed", "--all")).toBe(2);
+    // One free lookup for the size; the feed itself is never called.
+    expect(h.requests.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual(["GET /api/connectors/filters"]);
+    expect(h.stdout()).toBe("");
+    expect(h.stderr()).toContain(
+      "jobo feed --all with no filter streams the whole index: about 8,012,345 jobs, up to 24,037,035 credits (about $24,037) if every one is new to you.",
+    );
+    expect(h.stderr()).toContain("pass --yes");
+  });
+
+  it("refuses all the same when the size cannot be fetched, without retrying", async () => {
+    const failing = harness({ env, responder: index(null) });
+    expect(await failing.run("feed", "--all", "--batch-size", "100", "--output", "all.jsonl")).toBe(2);
+    expect(failing.requests).toHaveLength(1);
+    expect(failing.sleeps).toEqual([]);
+    expect(failing.stderr()).toContain("every live job, at $3.00 per 1,000 that are new to you");
+    expect(existsSync(join(failing.cwd, "all.jsonl"))).toBe(false);
+
+    // No key: still a usage error about the missing filter, and nothing is sent.
+    const keyless = harness({ responder: index(eightMillion) });
+    expect(await keyless.run("feed", "--all")).toBe(2);
+    expect(keyless.requests).toHaveLength(0);
+  });
+
+  it("runs with --yes, without looking the size up", async () => {
+    const h = harness({ env, responder: index(eightMillion, 3) });
+    expect(await h.run("feed", "--all", "--yes")).toBe(0);
+    expect(h.requests.map((request) => request.method)).toEqual(["POST"]);
+    expect(lines(h.stdout())).toHaveLength(3);
+  });
+
+  it.each([
+    ["a filter flag", ["--sources", "greenhouse"]],
+    ["an exclude filter", ["--exclude-languages", "de"]],
+    ["a filter in --body", ["--body", '{"work_models":["remote"]}']],
+    ["an incremental watermark", ["--updated-after", "24h"]],
+    ["a cursor", ["--cursor", "c5"]],
+  ])("needs no --yes with %s", async (_name, argv) => {
+    const h = harness({ env, responder: index(eightMillion) });
+    expect(await h.run("feed", "--all", ...argv)).toBe(0);
+    expect(h.requests.every((request) => request.method === "POST")).toBe(true);
+  });
+
+  it("needs no --yes to resume from a cursor file, and does for an empty one", async () => {
+    const resuming = harness({ env, responder: index(eightMillion) });
+    writeFileSync(join(resuming.cwd, "feed.cursor"), "c5\n");
+    expect(await resuming.run("feed", "--all", "--cursor-file", "feed.cursor")).toBe(0);
+    expect(resuming.body()).toEqual({ cursor: "c5" });
+
+    const fresh = harness({ env, responder: index(eightMillion) });
+    writeFileSync(join(fresh.cwd, "feed.cursor"), "\n");
+    expect(await fresh.run("feed", "--all", "--cursor-file", "feed.cursor")).toBe(2);
+  });
+
+  it.each([
+    ["a format", ["--description-format", "html"]],
+    ["--include-reactivated", ["--include-reactivated", "true"]],
+    ["an empty --body", ["--body", "{}"]],
+    ["a --body that only sets the scan mode", ["--body", '{"stable_scan":true}']],
+  ])("still counts %s as the whole index", async (_name, argv) => {
+    const h = harness({ env, responder: index(eightMillion) });
+    expect(await h.run("feed", "--all", ...argv)).toBe(2);
+    expect(h.stderr()).toContain("the whole index");
+  });
+
+  it("never asks for --yes when --max bounds the run", async () => {
+    const h = harness({ env, responder: index(eightMillion) });
+    expect(await h.run("feed", "--max", "5")).toBe(0);
+    expect(h.requests.map((request) => request.method)).toEqual(["POST"]);
+  });
+});
+
+describe("jobo feed company filters", () => {
+  const ID_A = "b5e6f7a8-1234-5678-9abc-def012345678";
+  const ID_B = "0a1b2c3d-4e5f-6789-abcd-ef0123456789";
+
+  it("splits a comma list of ids or domains, and keeps a name with a comma whole", async () => {
+    const h = harness({ env, responder: feed(1) });
+    await h.run("feed", "--max", "1", "--companies", `${ID_A},${ID_B}`, "--companies", "fedex.com, ups.com", "--exclude-companies", "Acme, Inc.");
+    expect(h.body().companies).toEqual({ include: [ID_A, ID_B, "fedex.com", "ups.com"], exclude: ["Acme, Inc."] });
   });
 });

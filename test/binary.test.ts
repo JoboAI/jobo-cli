@@ -108,10 +108,37 @@ describe("the built binary", () => {
   it("--help lists the commands", async () => {
     const result = await jobo(["--help"]);
     expect(result.code).toBe(0);
-    for (const name of ["auth", "search", "job", "feed", "expired", "company", "companies", "geocode", "filters", "occupations", "usage", "mcp", "skill"]) {
+    for (const name of ["auth", "search", "job", "feed", "expired", "company", "companies", "locations", "geocode", "filters", "occupations", "usage", "mcp", "skill", "completion"]) {
       expect(result.stdout).toContain(`  ${name}`);
     }
     expect(result.stderr).toBe("");
+  });
+
+  it("answers the shell's completion request, and stays silent with no key", async () => {
+    expect(await jobo(["__complete", "--", "search", "--work-model", "remote,hy"])).toEqual({ code: 0, stdout: "remote,hybrid\n", stderr: "" });
+    expect(await jobo(["__complete", "--", "search", "-o", ""])).toEqual({ code: 0, stdout: "__files__\n", stderr: "" });
+    // A lookup that needs a key: none in this environment, so nothing is printed and nothing is sent.
+    const before = seen.length;
+    expect(await jobo(["__complete", "--", "search", "--sources", ""], { JOBO_API_URL: apiUrl })).toEqual({ code: 0, stdout: "", stderr: "" });
+    expect(seen.length).toBe(before);
+  });
+
+  it("prints a completion script per shell", async () => {
+    for (const shell of ["bash", "zsh", "fish"]) {
+      const result = await jobo(["completion", shell]);
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain("jobo __complete -- ");
+      expect(result.stderr).toBe("");
+    }
+  });
+
+  it("explains an unknown flag itself, end to end", async () => {
+    const result = await jobo(["search", "nurse", "--work-modle", "remote"]);
+    expect(result).toEqual({
+      code: 2,
+      stdout: "",
+      stderr: "error: Unknown flag --work-modle. Did you mean --work-model?\nRun `jobo search --help` for usage.\n",
+    });
   });
 
   it("search --help lists the contract's flags", async () => {

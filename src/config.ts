@@ -30,6 +30,20 @@ export function configPath(io: Pick<Io, "env" | "homedir" | "platform">): string
   return join(io.homedir, ".config", "jobo", "config.json");
 }
 
+/**
+ * Where regenerable data goes (the value lists shell completion caches):
+ * `$XDG_CACHE_HOME/jobo`, defaulting to `~/.cache/jobo` on Linux and macOS and
+ * `%LOCALAPPDATA%\jobo\cache` on Windows. Nothing here is worth keeping.
+ */
+export function cacheDir(io: Pick<Io, "env" | "homedir" | "platform">): string {
+  const xdg = io.env.XDG_CACHE_HOME?.trim();
+  if (xdg) return join(xdg, "jobo");
+  if (io.platform === "win32" && io.env.LOCALAPPDATA?.trim()) {
+    return join(io.env.LOCALAPPDATA.trim(), "jobo", "cache");
+  }
+  return join(io.homedir, ".cache", "jobo");
+}
+
 function readConfig(path: string): ConfigFile {
   if (!existsSync(path)) return {};
   let parsed: unknown;

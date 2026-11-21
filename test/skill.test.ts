@@ -4,10 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { COMMANDS } from "../src/cli";
-import { GLOBAL_OPTIONS, OUTPUT_OPTIONS } from "../src/args";
+import { GLOBAL_OPTIONS, OUTPUT_OPTIONS, optionNames, optionsFor, parseCommandArgs, type CommandDef } from "../src/args";
 import { SKILL_NAME, bundledSkillDir } from "../src/commands/skill";
 import pkg from "../package.json";
-import { harness } from "./helpers";
+import { LIVE_KEY, harness, json } from "./helpers";
 
 const skillFile = join(bundledSkillDir(), "SKILL.md");
 const skillText = readFileSync(skillFile, "utf8");
@@ -23,20 +23,103 @@ function frontmatter(text: string): Record<string, string> {
   return fields;
 }
 
-/** Every flag any command accepts. */
+/** Every flag any command accepts, aliases included. */
 function knownFlags(): Set<string> {
   const flags = new Set([...Object.keys(GLOBAL_OPTIONS), ...Object.keys(OUTPUT_OPTIONS)]);
   for (const command of [...COMMANDS, ...COMMANDS.flatMap((entry) => entry.subcommands ?? [])]) {
-    for (const name of Object.keys(command.options ?? {})) flags.add(name);
+    for (const name of optionNames(command.options ?? {}).keys()) flags.add(name);
   }
   return flags;
 }
 
-/** `--flags` a document mentions, ignoring those of other tools (`claude mcp add --transport`). */
+/** The `jobo …` command lines in a document's fenced code blocks, with `\` continuations joined. */
+function commandLines(text: string): string[] {
+  const lines: string[] = [];
+  for (const block of text.matchAll(/```[a-z]*\n([\s\S]*?)```/g)) {
+    for (const line of (block[1] ?? "").replace(/\s*\\\n\s*/g, " ").split("\n")) {
+      if (line.trim().startsWith("jobo ")) lines.push(line.trim());
+    }
+  }
+  return lines;
+}
+
+/** Split a command line the way a shell would: quotes group, and a comment, pipe or redirect ends it. */
+function shellWords(line: string): string[] {
+  const words: string[] = [];
+  let word: string | null = null;
+  let quote: string | null = null;
+  for (const char of line) {
+    if (quote) {
+      if (char === quote) quote = null;
+      else word = (word ?? "") + char;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+      word ??= "";
+    } else if (char === " " || char === "\t") {
+      if (word !== null) words.push(word);
+      word = null;
+    } else if ((char === "#" && word === null) || char === "|" || char === ">") {
+      break;
+    } else {
+      word = (word ?? "") + char;
+    }
+  }
+  if (word !== null) words.push(word);
+  return words;
+}
+
+/** A body every command can read: each one picks the keys of its own endpoint. */
+const anything = () =>
+  json(200, {
+    jobs: [],
+    total: 0,
+    page: 1,
+    page_size: 10,
+    total_pages: 0,
+    facets: {},
+    next_cursor: null,
+    has_more: false,
+    job_ids: [],
+    suggestions: [],
+    options: [],
+    enums: {},
+    sources: [],
+    categories: [],
+    version: "v1",
+    succeeded: true,
+  });
+
+/**
+ * Run a documented command line for real, against a backend that answers
+ * anything: the flags have to exist, the values have to be valid and the
+ * command must not be refused. `jobo auth` and `jobo logout` are only parsed,
+ * since they prompt for, save or remove a key.
+ */
+async function runDocumented(line: string): Promise<void> {
+  const [program, name, ...rest] = shellWords(line);
+  expect(program, line).toBe("jobo");
+  const top = COMMANDS.find((entry) => entry.name === name);
+  if (name === "--help" || name === "--version") return;
+  expect(top, `${line}: no such command`).toBeDefined();
+  const sub = top?.subcommands?.find((entry) => entry.name === rest[0]);
+  expect(() => parseCommandArgs(sub ? rest.slice(1) : rest, optionsFor((sub ?? top) as CommandDef)), line).not.toThrow();
+  if (name === "auth" || name === "logout") return;
+
+  const h = harness({ env: { JOBO_API_KEY: LIVE_KEY }, responder: anything });
+  writeFileSync(join(h.cwd, "feed.json"), '{"job_subcategories":{"include":["Nursing"]}}');
+  const code = await h.run(name ?? "", ...rest);
+  expect(code, `${line}\n${h.stderr()}`).toBe(0);
+}
+
+/**
+ * `--flags` a document mentions, ignoring those of other tools (`claude mcp
+ * add --transport`) and the mistyped one an "Unknown flag" error is quoted for.
+ */
 function mentionedFlags(text: string): string[] {
   const own = text
     .split("\n")
     .filter((line) => !/\b(claude|codex|npm|npx|curl) /.test(line) || /\bjobo /.test(line))
+    .map((line) => line.replace(/Unknown flag --[a-z-]+/, "Unknown flag"))
     .join("\n");
   return [...new Set([...own.matchAll(/(?<![\w-])--([a-z][a-z0-9-]*)/g)].map((match) => match[1] ?? ""))].filter(
     // "--exclude-" on its own is prose for the family of exclude flags.
@@ -95,6 +178,53 @@ describe("the README", () => {
 
   it("has a section for every command", () => {
     for (const command of COMMANDS) expect(readme, command.name).toContain(`jobo ${command.name}`);
+  });
+
+  it("does not suggest the feed has an --exclude-locations flag", () => {
+    expect(readme).not.toMatch(/exclude-locations/);
+    expect(optionNames(optionsFor(COMMANDS.find((command) => command.name === "feed") as CommandDef)).has("exclude-locations")).toBe(false);
+    // The sentence that lists the flags with an exclude twin must not have --locations among them.
+    for (const sentence of readme.replace(/\s+/g, " ").split(/(?<=[.;]) /)) {
+      if (/`--exclude-` twin/.test(sentence)) expect(sentence, sentence).not.toMatch(/`--locations`/);
+    }
+  });
+});
+
+describe("every documented command line runs", () => {
+  const documents: Array<[string, string]> = [
+    ["README.md", join(__dirname, "..", "README.md")],
+    ["SKILL.md", skillFile],
+    // Lives outside the package; absent from the public mirror of cli/.
+    ["docs/connectors/cli.mdx", join(__dirname, "..", "..", "..", "docs", "connectors", "cli.mdx")],
+  ];
+
+  for (const [label, path] of documents) {
+    const lines = existsSync(path) ? commandLines(readFileSync(path, "utf8")) : [];
+    it.skipIf(lines.length === 0).each(lines)(`${label}: %s`, async (line) => {
+      await runDocumented(line);
+    });
+  }
+
+  const examples = [...COMMANDS, ...COMMANDS.flatMap((entry) => entry.subcommands ?? [])].flatMap((command) => command.examples ?? []);
+  it.each(examples.filter((example) => example.startsWith("jobo ")))("--help example: %s", async (line) => {
+    await runDocumented(line);
+  });
+
+  it("finds the command lines it is meant to check", () => {
+    expect(commandLines("```bash\njobo search x \\\n  --page-size 5   # five\njobo feed --max 1 > out.jsonl\n```")).toEqual([
+      "jobo search x --page-size 5   # five",
+      "jobo feed --max 1 > out.jsonl",
+    ]);
+    expect(shellWords('jobo search "data engineer" --location \'Berlin, Germany\' --q=""   # note')).toEqual([
+      "jobo",
+      "search",
+      "data engineer",
+      "--location",
+      "Berlin, Germany",
+      "--q=",
+    ]);
+    expect(shellWords("jobo occupations --jsonl | grep -i nurse")).toEqual(["jobo", "occupations", "--jsonl"]);
+    expect(commandLines(readFileSync(join(__dirname, "..", "README.md"), "utf8")).length).toBeGreaterThan(30);
   });
 });
 

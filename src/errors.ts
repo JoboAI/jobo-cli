@@ -11,7 +11,7 @@ export const EXIT = {
   OK: 0,
   /** The API refused the request (400, 403, an unexpected status) or something else failed. */
   ERROR: 1,
-  /** Bad command line: unknown flag, missing argument, invalid value. Nothing was sent. */
+  /** Bad command line: unknown flag, missing argument, invalid value. Nothing billable was sent. */
   USAGE: 2,
   /** No API key, a malformed one, or one the API rejected (401). */
   AUTH: 3,
@@ -48,7 +48,7 @@ export class CliError extends Error {
   }
 }
 
-/** A mistake on the command line. Raised before anything is sent, so nothing is billed. */
+/** A mistake on the command line. Raised before any billed request is sent, so it never costs anything. */
 export class UsageError extends CliError {
   constructor(message: string) {
     super(message, EXIT.USAGE);

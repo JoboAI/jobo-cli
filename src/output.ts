@@ -1,4 +1,4 @@
-import { closeSync, existsSync, openSync, statSync, writeSync } from "node:fs";
+import { closeSync, existsSync, ftruncateSync, openSync, rmSync, statSync, writeSync } from "node:fs";
 import { extname, resolve } from "node:path";
 
 import { flag, str, type Ctx, type ParsedValues } from "./args";
@@ -17,6 +17,8 @@ export interface Column {
   get?: (row: unknown) => unknown;
   /** Widest a table cell may get before it is cut with an ellipsis. */
   max?: number;
+  /** A value meant to be copied (ids for a flag): a table never cuts it, even if the row then wraps. */
+  whole?: boolean;
 }
 
 /**
@@ -62,8 +64,13 @@ export interface Sink {
 }
 
 /**
- * Open the destination before anything is requested: a refused overwrite must
- * fail the command while it is still free.
+ * Open the destination before anything is requested: a refused overwrite or an
+ * unwritable path must fail the command while it is still free.
+ *
+ * Nothing is lost by opening early. The file is opened without truncating, so
+ * an `--overwrite` target keeps its content until the first write replaces it,
+ * and a file this run created is removed again on `close()` if nothing was
+ * ever written: a failed run leaves no empty file to trip over on the retry.
  */
 export function openSink(ctx: Pick<Ctx, "io" | "values">, format: Format): Sink {
   const file = str(ctx.values, "output");
@@ -92,18 +99,46 @@ export function openSink(ctx: Pick<Ctx, "io" | "values">, format: Format): Sink 
     throw new UsageError(`${path} already exists. Pass --overwrite to replace it or --append to add to it.`);
   }
   const continuing = exists && append && statSync(path).size > 0;
-  const fd = openSync(path, append ? "a" : "w");
+  let fd: number;
+  try {
+    // "r+" opens an existing file without emptying it ("a" would too, but Windows cannot truncate a file opened for append).
+    fd = openSync(path, append ? "a" : exists ? "r+" : "w");
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    const reason =
+      code === "ENOENT"
+        ? "its directory does not exist"
+        : code === "EACCES" || code === "EPERM"
+          ? "permission denied"
+          : code === "EISDIR"
+            ? "it is a directory"
+            : (error as Error).message;
+    throw new UsageError(`Cannot write to ${path}: ${reason}.`);
+  }
+  // Set by the first write(), even an empty one: a successful run always writes, a run that failed first never does.
+  let written = false;
   return {
     // Synchronous on purpose: when write() returns the rows are in the file,
     // which is what lets the feed save its cursor right after.
     write: async (text) => {
+      if (!written && exists && !append) ftruncateSync(fd, 0);
+      written = true;
       writeSync(fd, text);
     },
-    close: () => closeSync(fd),
+    close: () => {
+      closeSync(fd);
+      if (!written && !exists) rmSync(path, { force: true });
+    },
     continuing,
     path,
     width: 160,
   };
+}
+
+/** A value as one shell word, for the lines a user is meant to paste: bare when it is safe, quoted otherwise. */
+export function shellWord(value: string): string {
+  if (/^[\w@%+=:,./-]+$/.test(value)) return value;
+  return /["$`\\!]/.test(value) ? `'${value.replace(/'/g, "'\\''")}'` : `"${value}"`;
 }
 
 // ── Values ───────────────────────────────────────────────────────────────────
@@ -142,8 +177,8 @@ export function project(row: unknown, columns: readonly Column[]): Record<string
 }
 
 /** A column over an already-flat record, whose key may itself contain dots. */
-function flatColumn(key: string, max?: number): Column {
-  return { key, max, get: (row) => (row as Record<string, unknown> | null)?.[key] };
+function flatColumn(key: string, like: Pick<Column, "max" | "whole"> = {}): Column {
+  return { key, max: like.max, whole: like.whole, get: (row) => (row as Record<string, unknown> | null)?.[key] };
 }
 
 /** `--fields` entries become columns, reusing a known column's getter when the name matches one. */
@@ -186,15 +221,18 @@ export function toTable(rows: readonly unknown[], columns: readonly Column[], wi
   const headers = columns.map((column) => (column.header ?? column.key).toUpperCase());
   const widths = columns.map((column, index) => {
     const longest = Math.max(headers[index]?.length ?? 0, ...cells.map((line) => line[index]?.length ?? 0));
-    return Math.min(longest, column.max ?? 60);
+    return column.whole ? longest : Math.min(longest, column.max ?? 60);
   });
 
-  // Shrink the widest column until the row fits the terminal.
+  // Shrink the widest column that may be cut until the row fits the terminal.
   const gap = 2;
   const total = () => widths.reduce((sum, w) => sum + w, 0) + gap * (widths.length - 1);
   while (total() > width) {
-    const widest = widths.indexOf(Math.max(...widths));
-    if ((widths[widest] ?? 0) <= 8) break;
+    let widest = -1;
+    widths.forEach((w, index) => {
+      if (!columns[index]?.whole && (widest === -1 || w > (widths[widest] ?? 0))) widest = index;
+    });
+    if (widest === -1 || (widths[widest] ?? 0) <= 8) break;
     widths[widest] = (widths[widest] ?? 0) - 1;
   }
 
@@ -240,10 +278,20 @@ export async function emitRecords(
   const fields = parseFields(ctx.values);
   const csvColumns = output.csvColumns ?? output.columns;
   const known = format === "csv" ? [...csvColumns, ...output.columns] : [...output.columns, ...csvColumns];
-  const columns = fields ? selectColumns(fields, known) : format === "csv" ? [...csvColumns] : [...output.columns];
+  // A known column formats its value for a cell (a location list as text, a
+  // timestamp as a day). JSON is data: there --fields only picks keys, and
+  // every value stays as the API returned it.
+  const raw = format === "json" || format === "jsonl";
+  const columns = fields
+    ? raw
+      ? fields.map((key): Column => ({ key }))
+      : selectColumns(fields, known)
+    : format === "csv"
+      ? [...csvColumns]
+      : [...output.columns];
   const rows = fields ? output.rows.map((row) => project(row, columns)) : output.rows;
   // After projection the field path is the record's own (flat) key.
-  const plain = fields ? columns.map((column) => flatColumn(column.key, column.max)) : columns;
+  const plain = fields ? columns.map((column) => flatColumn(column.key, column)) : columns;
 
   if (format === "json") return sink.write(toJson(output.envelope(rows)));
   if (format === "jsonl") return sink.write(toJsonl(rows));

@@ -1,6 +1,7 @@
 import {
   JoboApiError,
   JoboClient,
+  isValidApiKeyFormat,
   resolveRetryOptions,
   withRetry,
   type Transport,
@@ -9,7 +10,8 @@ import {
 
 import pkg from "../package.json";
 import { flag, str, type Ctx } from "./args";
-import { requireApiKey, resolveApiUrl, type ResolvedKey } from "./config";
+import { requireApiKey, resolveApiKey, resolveApiUrl, type ResolvedKey } from "./config";
+import type { Io } from "./io";
 
 export const VERSION: string = pkg.version;
 export const USER_AGENT = `jobo-cli/${VERSION}`;
@@ -90,6 +92,28 @@ export function openSession(ctx: Ctx, options: { timeoutMs?: number } = {}): Ses
   });
 
   return { client, key, apiUrl, usage: () => state.usage, headers: () => ctx.lastHeaders };
+}
+
+/**
+ * A client for free lookups that must never hold a command up or speak for
+ * it: one attempt, a short timeout, nothing announced. Shell completion and
+ * the feed's size estimate use it. Null when there is no usable key.
+ */
+export function quickClient(
+  io: Io,
+  options: { timeoutMs: number; apiKey?: string; apiUrl?: string },
+): JoboClient | null {
+  const key = resolveApiKey(io, options.apiKey);
+  if (!key || !isValidApiKeyFormat(key.key)) return null;
+  return new JoboClient({
+    apiKey: key.key,
+    baseUrl: resolveApiUrl(io, options.apiUrl),
+    transport: io.transport,
+    retry: { maxAttempts: 1, sleep: io.sleep },
+    timeoutMs: options.timeoutMs,
+    userAgent: USER_AGENT,
+    client: CLIENT_NAME,
+  });
 }
 
 /**

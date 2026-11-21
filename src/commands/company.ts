@@ -4,7 +4,7 @@ import { int, str, type CommandDef, type Ctx } from "../args";
 import { resolveApiKey } from "../config";
 import { UsageError } from "../errors";
 import { emitDocument, emitRecords, openSink, resolveFormat, toKeyValue } from "../output";
-import { anonymousGet, openSession } from "../session";
+import { anonymousGet, note, openSession } from "../session";
 
 function companyView(document: unknown): string {
   const company = (document ?? {}) as Record<string, unknown>;
@@ -68,11 +68,19 @@ async function runCompanies(ctx: Ctx): Promise<number> {
         { key: "domain", max: 28 },
         { key: "country" },
         { key: "job_count", header: "jobs" },
-        { key: "ids", get: (row) => ((row as CompanySuggestion).ids ?? []).join(" ") },
+        // Comma-joined and never cut, so the cell is the --companies value as it stands.
+        { key: "ids", get: (row) => ((row as CompanySuggestion).ids ?? []).join(","), whole: true },
       ],
       empty: "No company name or domain starts with that.",
       envelope: (rows) => ({ ...data, suggestions: rows }),
     });
+    const top = suggestions[0];
+    if (top?.ids?.length) {
+      note(
+        ctx,
+        `to filter on ${top.name}${suggestions.length > 1 ? " (the first match)" : ""}, in search or the feed: --companies ${top.ids.join(",")}`,
+      );
+    }
   } finally {
     sink.close();
   }
@@ -85,9 +93,15 @@ export const companiesCommand: CommandDef = {
   usage: ["<query> [--limit N]"],
   description:
     "Companies whose name or website domain starts with the query, each with its ids and live job count. One company can have several ids, one per careers board: " +
-    "pass every id in `ids` to `jobo search --companies` (repeat the flag). A name would also match every other company called that. Free; never billed.",
+    "pass them all to --companies, in search or the feed. The ids column is already written that way (id1,id2), and the line printed under the results is ready to paste. " +
+    "A name would also match every other company called that. Free; never billed.",
   options: {
-    limit: { type: "string", value: "N", description: `Most companies to return, 1–${MAX_SUGGESTIONS} (default 8).` },
+    limit: {
+      type: "string",
+      aliases: ["max"],
+      value: "N",
+      description: `Most companies to return, 1–${MAX_SUGGESTIONS} (default 8; also --max).`,
+    },
   },
   output: true,
   examples: ["jobo companies stripe", "jobo companies fedex.com --json"],

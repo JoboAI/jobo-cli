@@ -2,6 +2,7 @@ import { flag, wrap, type CommandDef, type Ctx } from "../args";
 import data from "../data/mcp-clients.json";
 import { UsageError } from "../errors";
 import { toJson, toTable } from "../output";
+import { didYouMean } from "../suggest";
 
 /**
  * `jobo mcp` is a renderer over `src/data/mcp-clients.json` and nothing else:
@@ -204,8 +205,9 @@ async function run(ctx: Ctx): Promise<number> {
   }
   const client = findClient(file, query);
   if (!client) {
+    const slugs = file.clients.map((entry) => entry.slug);
     throw new UsageError(
-      `No MCP client called "${query}". Known clients: ${file.clients.map((entry) => entry.slug).join(", ")}. ` +
+      `No MCP client called "${query}".${didYouMean(query, slugs)} Known clients: ${slugs.join(", ")}. ` +
         `Any other client that supports Streamable HTTP takes the same URL: ${file.serverUrl}`,
     );
   }
@@ -226,6 +228,7 @@ export const mcpCommand: CommandDef = {
   options: {
     json: { type: "boolean", description: "Print the client entry (or the whole list) as JSON." },
   },
+  args: [{ complete: { kind: "values", values: MCP_CLIENTS.clients.map((client) => client.slug) } }],
   examples: ["jobo mcp", ...MCP_CLIENTS.clients.slice(0, 2).map((client) => `jobo mcp ${client.slug}`)],
   run,
 };

@@ -6,6 +6,30 @@ import { formatNumber, note, openSession } from "../session";
 
 const MAX_BATCH_SIZE = 10_000;
 const DEFAULT_LIMIT = 1000;
+/** The API answers 400 to an `expired_since` more than 7 days back, or in the future. */
+const MAX_WINDOW_DAYS = 7;
+const MAX_WINDOW_MS = MAX_WINDOW_DAYS * 86_400_000;
+/**
+ * `--since 7d` is 7 days before *our* clock; by the time the API reads it, it
+ * is a moment older than its limit. Pull a start at the very edge in by this
+ * much, which also leaves room for the pages of a long walk.
+ */
+const EDGE_MARGIN_MS = 5 * 60_000;
+
+/** The start of the window, checked against the API's limits before anything is sent. */
+function windowStart(raw: string, now: Date): string {
+  const since = parseTime(raw, "--since", now);
+  const at = Date.parse(since);
+  const earliest = now.getTime() - MAX_WINDOW_MS;
+  if (at < earliest) {
+    throw new UsageError(
+      `--since ${raw} is more than ${MAX_WINDOW_DAYS} days back, and the API keeps expired ids for ${MAX_WINDOW_DAYS} days ` +
+        `(the earliest start now is ${new Date(earliest).toISOString()}). To catch up after a longer gap, sync the feed again and treat ids that no longer appear as expired.`,
+    );
+  }
+  if (at > now.getTime()) throw new UsageError(`--since ${raw} is in the future.`);
+  return at < earliest + EDGE_MARGIN_MS ? new Date(earliest + EDGE_MARGIN_MS).toISOString() : since;
+}
 
 async function run(ctx: Ctx): Promise<number> {
   if (ctx.positionals.length > 0) throw new UsageError("jobo expired takes no arguments. Use --since for the start of the window.");
@@ -15,7 +39,7 @@ async function run(ctx: Ctx): Promise<number> {
   const limit = all ? Number.POSITIVE_INFINITY : (requested ?? DEFAULT_LIMIT);
 
   const since = str(ctx.values, "since");
-  const expiredSince = since !== undefined ? parseTime(since, "--since", ctx.io.now()) : undefined;
+  const expiredSince = since !== undefined ? windowStart(since, ctx.io.now()) : undefined;
 
   const format = resolveFormat(ctx.values, ctx.io);
   const sink = openSink(ctx, format);
@@ -62,14 +86,19 @@ export const expiredCommand: CommandDef = {
   usage: ["[--since WHEN] [--limit N | --all] [--cursor CURSOR]"],
   description:
     "Runs GET /api/jobs/expired: ids of jobs that stopped appearing on the employer's career site, so you can close them in your own store. " +
-    "Free; it counts toward the JobFeed rate limit. The window starts 24 hours ago unless --since says otherwise, and reaches back at most 7 days. Not available with a sandbox key.",
+    `Free; it counts toward the JobFeed rate limit. The window starts 24 hours ago unless --since says otherwise, and reaches back at most ${MAX_WINDOW_DAYS} days: an earlier --since is refused before anything is sent. Not available with a sandbox key.`,
   options: {
     since: {
       type: "string",
       value: "WHEN",
-      description: "Jobs that expired on or after this time: ISO 8601, or an age such as 24h or 3d. At most 7 days back (default: 24 hours ago).",
+      description: `Jobs that expired on or after this time: ISO 8601, or an age such as 24h or 3d. At most ${MAX_WINDOW_DAYS} days back (default: 24 hours ago).`,
     },
-    limit: { type: "string", value: "N", description: `Most ids to return (default ${formatNumber(DEFAULT_LIMIT)}). Pages are walked as needed.` },
+    limit: {
+      type: "string",
+      aliases: ["max"],
+      value: "N",
+      description: `Most ids to return (default ${formatNumber(DEFAULT_LIMIT)}; also --max). Pages are walked as needed.`,
+    },
     all: { type: "boolean", description: "Return every id in the window." },
     cursor: { type: "string", value: "CURSOR", description: "Continue from the `next cursor` of an earlier run." },
   },

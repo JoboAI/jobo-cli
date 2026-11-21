@@ -13,8 +13,10 @@ import { UsageError } from "../errors";
 import { FILTER_FACETS } from "../filters";
 import { emitDocument, emitRecords, openSink, resolveFormat, toTable } from "../output";
 import { openSession } from "../session";
+import { canonical, didYouMean } from "../suggest";
 
-const MAX_OPTIONS = 250;
+/** The most values one facet request returns. */
+export const MAX_OPTIONS = 250;
 
 /** Vocabularies the API does not serve live: fixed lists from the shared contract. */
 const CONTRACT_VOCABULARIES = {
@@ -50,11 +52,11 @@ function vocabularyView(document: unknown): string {
 }
 
 async function run(ctx: Ctx): Promise<number> {
-  const [facet, ...rest] = ctx.positionals;
+  const [given, ...rest] = ctx.positionals;
   const limit = int(ctx.values, "limit", { min: 1, max: MAX_OPTIONS });
   const format = resolveFormat(ctx.values, ctx.io);
 
-  if (facet === undefined) {
+  if (given === undefined) {
     if (limit !== undefined) throw new UsageError("--limit applies to a facet: jobo filters <facet> [query] --limit N.");
     const sink = openSink(ctx, format);
     try {
@@ -76,8 +78,15 @@ async function run(ctx: Ctx): Promise<number> {
     return 0;
   }
 
-  if (!(FILTER_FACETS as readonly string[]).includes(facet)) {
-    throw new UsageError(`Unknown facet "${facet}". Facets: ${FILTER_FACETS.join(", ")}. For companies use \`jobo companies <query>\`.`);
+  // The flag is --job-categories and the facet job_categories: take either spelling, in any case.
+  const facet = canonical(given, FILTER_FACETS);
+  if (facet === undefined) {
+    const elsewhere = /^compan/i.test(given)
+      ? " Companies are looked up with `jobo companies <query>`."
+      : /^locat/i.test(given)
+        ? " Places are looked up with `jobo locations <query>`."
+        : didYouMean(given, FILTER_FACETS);
+    throw new UsageError(`Unknown facet "${given}".${elsewhere} Facets: ${FILTER_FACETS.join(", ")}.`);
   }
   const query = rest.join(" ").trim();
   const sink = openSink(ctx, format);
@@ -110,11 +119,18 @@ export const filtersCommand: CommandDef = {
   description:
     "With no argument: the fixed vocabularies (work models, employment types, experience levels, company categories, languages, sort orders) and every ATS source with its live job count. " +
     `With a facet: the values of one open vocabulary with live job counts, optionally narrowed by a query. Facets: ${FILTER_FACETS.join(", ")}. ` +
+    "A facet may be written as its flag is (job-categories for job_categories). " +
     "The `value` column is what the matching search flag takes; for occupations that is the occupation id, shown with its name and parent subcategory. " +
     "Never billed. Not available with a sandbox key.",
   options: {
-    limit: { type: "string", value: "N", description: `Most values to return for a facet, 1–${MAX_OPTIONS} (default 50).` },
+    limit: {
+      type: "string",
+      aliases: ["max"],
+      value: "N",
+      description: `Most values to return for a facet, 1–${MAX_OPTIONS} (default 50; also --max).`,
+    },
   },
+  args: [{ choices: FILTER_FACETS }],
   output: true,
   notFound: "That facet is not available: occupations are not published in this environment.",
   examples: ["jobo filters", "jobo filters skills pyth", "jobo filters occupations nurse --json", "jobo filters sources --limit 250 --csv"],

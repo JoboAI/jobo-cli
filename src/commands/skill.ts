@@ -72,7 +72,7 @@ export const skillCommand: CommandDef = {
       usage: ["[--dir PATH | --project] [--overwrite]"],
       description: `Copies the skill folder to <skills directory>/${SKILL_NAME}. The skills directory is ~/.claude/skills by default, ./.claude/skills with --project, or whatever --dir names.`,
       options: {
-        dir: { type: "string", value: "PATH", description: "Skills directory to install into." },
+        dir: { type: "string", value: "PATH", description: "Skills directory to install into.", complete: { kind: "file" } },
         project: { type: "boolean", description: "Install into ./.claude/skills of the current directory." },
         overwrite: { type: "boolean", description: "Replace an existing copy of the skill." },
       },

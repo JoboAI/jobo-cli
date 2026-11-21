@@ -6,7 +6,16 @@ import { describe, expect, it } from "vitest";
 
 import { feedCommand } from "../src/commands/feed";
 import { searchCommand } from "../src/commands/search";
-import { FEED_FILTERS, FILTER_FACETS, NO_COMMA_SPLIT, flagName, parseLocation, parseTime } from "../src/filters";
+import {
+  FEED_FILTERS,
+  FILTER_FACETS,
+  NO_COMMA_SPLIT,
+  feedLocation,
+  flagName,
+  parseLocation,
+  parseTime,
+  placeName,
+} from "../src/filters";
 import { LIVE_KEY, harness, json, searchPage } from "./helpers";
 
 const empty = () => json(200, searchPage([], { total: 0, page: 1, page_size: 10, total_pages: 0 }));
@@ -162,6 +171,23 @@ describe("search flag → request body", () => {
     expect(h.body().companies).toEqual({ include: ["Acme, Inc.", "stripe.com"] });
   });
 
+  it("splits a comma list of company ids or domains", async () => {
+    const idA = "b5e6f7a8-1234-5678-9abc-def012345678";
+    const idB = "0A1B2C3D-4E5F-6789-ABCD-EF0123456789";
+    const h = harness({ responder: empty, env: { JOBO_API_KEY: LIVE_KEY } });
+    await h.run("search", "--companies", `${idA},${idB}`, "--companies", "stripe.com, shopify.com", "--exclude-companies", `${idA},fedex.com`);
+    expect(h.body().companies).toEqual({
+      include: [idA, idB, "stripe.com", "shopify.com"],
+      exclude: [idA, "fedex.com"],
+    });
+  });
+
+  it("keeps a company value whole as soon as one piece of it is a name", async () => {
+    const h = harness({ responder: empty, env: { JOBO_API_KEY: LIVE_KEY } });
+    await h.run("search", "--companies", "Acme, Inc.", "--companies", "Booking.com, B.V.", "--companies", "stripe.com,Shopify", "--companies", "stripe.com");
+    expect(h.body().companies).toEqual({ include: ["Acme, Inc.", "Booking.com, B.V.", "stripe.com,Shopify", "stripe.com"] });
+  });
+
   it("takes the query as an argument, sends paging, and leaves defaults out", async () => {
     const h = harness({ responder: empty, env: { JOBO_API_KEY: LIVE_KEY } });
     await h.run("search", "nurse", "--sort", "relevance", "--search-description", "true");
@@ -293,6 +319,23 @@ describe("value parsers", () => {
     });
     expect(() => parseLocation("city=Berlin")).toThrow(/needs a country/);
     expect(() => parseLocation("state=Texas")).toThrow(/unknown level/);
+    // Search's free text is not a country: sent as one, it would match nothing.
+    expect(() => parseLocation("Berlin, Germany")).toThrow(/not a country name.*country=Germany,city=Berlin.*jobo locations/);
+    expect(parseLocation("country=Korea, Republic of")).toEqual({ country: "Korea, Republic of" });
+  });
+
+  it("writes a suggested place as the feed's --locations value and as search's --location text", () => {
+    const berlin = { city: "Berlin", region: "Berlin", country: "Germany", display_name: "Berlin, Berlin, Germany" };
+    expect(feedLocation(berlin)).toBe("country=Germany,region=Berlin,city=Berlin");
+    expect(parseLocation(feedLocation(berlin) ?? "")).toEqual({ country: "Germany", region: "Berlin", city: "Berlin" });
+    expect(feedLocation({ city: null, region: "Texas", country: "United States" })).toBe("country=United States,region=Texas");
+    expect(feedLocation({ city: null, region: null, country: "Germany" })).toBe("country=Germany");
+    expect(feedLocation({ city: "Nowhere", region: null, country: null })).toBeNull();
+    expect(placeName(berlin)).toBe("Berlin, Berlin, Germany");
+    expect(placeName({ city: "Austin", region: "Texas", country: "United States", display_name: null })).toBe("Austin, Texas, United States");
+    // A city with a comma in its name survives the round trip.
+    const dc = feedLocation({ city: "Washington, D.C.", region: null, country: "United States" });
+    expect(parseLocation(dc ?? "")).toEqual({ country: "United States", city: "Washington, D.C." });
   });
 
   it("passes ISO timestamps through untouched and rejects prose", () => {

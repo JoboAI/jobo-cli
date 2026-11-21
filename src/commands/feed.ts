@@ -8,15 +8,32 @@ import { URLS, UsageError } from "../errors";
 import { feedFilterOptions, flagName, parseFeedFilters } from "../filters";
 import { JOB_CSV_COLUMNS, JOB_TABLE_COLUMNS } from "../jobs";
 import { emitRecords, openSink, resolveFormat } from "../output";
-import { FEED_TIMEOUT_MS, formatNumber, note, openSession, usageLine } from "../session";
+import { FEED_TIMEOUT_MS, formatNumber, note, openSession, quickClient, usageLine } from "../session";
 
 const MAX_BATCH_SIZE = 1000;
+/** 3 credits a job: $3.00 per 1,000. */
+const CREDITS_PER_JOB = 3;
+const SIZE_LOOKUP_TIMEOUT_MS = 5000;
+
+/** Body keys that shape the output or the scan without narrowing it: alone, they still mean every job. */
+const NOT_NARROWING: ReadonlySet<string> = new Set(["description_format", "include_reactivated", "stable_scan"]);
 
 /** `--body`: inline JSON, or `@file` to read it from a file. */
 function readBody(ctx: Ctx): Record<string, unknown> {
   const raw = str(ctx.values, "body");
   if (raw === undefined) return {};
-  const text = raw.startsWith("@") ? readFileSync(resolve(ctx.io.cwd, raw.slice(1)), "utf8") : raw;
+  let text = raw;
+  if (raw.startsWith("@")) {
+    const path = resolve(ctx.io.cwd, raw.slice(1));
+    try {
+      text = readFileSync(path, "utf8");
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      const reason =
+        code === "ENOENT" ? "there is no such file" : code === "EISDIR" ? "it is a directory" : (error as Error).message;
+      throw new UsageError(`--body ${raw}: cannot read ${path}: ${reason}.`);
+    }
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -39,6 +56,43 @@ function saveCursor(path: string, cursor: string): void {
   const temp = `${path}.tmp`;
   writeFileSync(temp, `${cursor}\n`);
   renameSync(temp, path);
+}
+
+/**
+ * How many live jobs the index holds, from the free filter vocabulary (the
+ * job count of every source). Null when it cannot be had: the refusal that
+ * quotes it must not depend on it.
+ */
+async function indexSize(ctx: Ctx): Promise<number | null> {
+  try {
+    const client = quickClient(ctx.io, {
+      timeoutMs: SIZE_LOOKUP_TIMEOUT_MS,
+      apiKey: str(ctx.values, "api-key"),
+      apiUrl: str(ctx.values, "api-url"),
+    });
+    if (!client) return null;
+    const { data } = await client.filters();
+    const total = (data.sources ?? []).reduce(
+      (sum, source) => sum + (typeof source.count === "number" ? source.count : 0),
+      0,
+    );
+    return total > 0 ? total : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `--all` with nothing to narrow it is the whole index: say what that is, and stop unless it was confirmed. */
+async function refuseWholeIndex(ctx: Ctx): Promise<never> {
+  const size = await indexSize(ctx);
+  const scale =
+    size !== null
+      ? `about ${formatNumber(size)} jobs, up to ${formatNumber(size * CREDITS_PER_JOB)} credits (about $${formatNumber(Math.round((size * CREDITS_PER_JOB) / 1000))}) if every one is new to you`
+      : "every live job, at $3.00 per 1,000 that are new to you (the index size could not be fetched)";
+  throw new UsageError(
+    `jobo feed --all with no filter streams the whole index: ${scale}. ` +
+      "Add a filter, cap the run with --max N, or pass --yes to sync everything.",
+  );
 }
 
 async function run(ctx: Ctx): Promise<number> {
@@ -67,6 +121,9 @@ async function run(ctx: Ctx): Promise<number> {
   if (cursor && Object.keys(filters).length > 0) {
     note(ctx, "note: a cursor keeps the filters of the scan it came from; the filters on this command line are ignored.");
   }
+  // A cursor carries its scan's filters, so only a fresh scan can be the whole index.
+  const narrowed = Object.keys(filters).some((key) => !NOT_NARROWING.has(key));
+  if (all && !cursor && !narrowed && !flag(ctx.values, "yes")) await refuseWholeIndex(ctx);
 
   // The feed is a stream: JSONL unless a format is asked for, even in a terminal.
   const format = resolveFormat(ctx.values, ctx.io, { tty: "jsonl", piped: "jsonl" });
@@ -183,15 +240,28 @@ export const feedCommand: CommandDef = {
   description:
     "Runs POST /api/jobs/feed and walks its cursor, oldest job first, writing one JSON job per line. " +
     "A job is billed when you have not received it through Feed, Export or Outbound in the last 30 days: included jobs first, then the wallet at $3.00 per 1,000 new jobs. Jobs you already hold are delivered again at no charge. " +
-    "Because the first sync of a broad feed bills every job in it, an explicit --max N or --all is required. --max is exact: the last batch is shrunk to fit.\n\n" +
+    "Because the first sync of a broad feed bills every job in it, an explicit --max N or --all is required. --max is exact: the last batch is shrunk to fit. " +
+    "--all with no filter, --body or cursor would sync the whole index: it is refused, with the job count and the most it could cost, unless you add --yes.\n\n" +
     "The next cursor is printed on stderr after every batch and, with --cursor-file, saved to that file once the batch's jobs are written, so a crashed run resumes where it stopped: run the same command again. " +
     "The file is removed when the scan completes. Cursors do not expire. A cursor keeps the filters and batch size it was created with; filters given alongside one are ignored. " +
     "The wallet must cover a full batch before each request runs (3,000 credits for a batch of 1,000 with no plan), so use a smaller --batch-size on a low balance.\n\n" +
+    "The feed's filters are its own: plural, structured, and with no text query. A flag in the singular works too (--work-model for --work-models), and a fixed value in any case. " +
     `Not available with a sandbox key. Build a filter set interactively at ${URLS.feedBuilder} and pass it with --body.`,
   options: {
     ...feedFilterOptions(),
-    max: { type: "string", value: "N", description: "Stop after N jobs. Never delivers more.", group: "Paging" },
+    max: {
+      type: "string",
+      aliases: ["limit"],
+      value: "N",
+      description: "Stop after N jobs (also --limit). Never delivers more.",
+      group: "Paging",
+    },
     all: { type: "boolean", description: "Stream every matching job, with no cap.", group: "Paging" },
+    yes: {
+      type: "boolean",
+      description: "Confirm --all with no filter, --body or cursor: sync the whole index.",
+      group: "Paging",
+    },
     "batch-size": {
       type: "string",
       value: "N",
@@ -203,12 +273,15 @@ export const feedCommand: CommandDef = {
       type: "string",
       value: "FILE",
       description: "Resume from the cursor in FILE if it exists, and save the next cursor to it after every batch.",
+      complete: { kind: "file" },
       group: "Paging",
     },
     body: {
       type: "string",
       value: "JSON|@FILE",
-      description: `A raw feed request body as JSON, or @file to read one. Filter flags are merged over it. Body keys: ${JOB_FEED_FILTER_KEYS.join(", ")}.`,
+      description:
+        `A raw feed request body as JSON, or @FILE to read one from a file: --body '{"job_subcategories":{"include":["Nursing"]}}' or --body @feed.json. ` +
+        `Filter flags are merged over it. Body keys: ${JOB_FEED_FILTER_KEYS.join(", ")}.`,
       group: "Filters",
     },
   },
@@ -218,6 +291,8 @@ export const feedCommand: CommandDef = {
     "jobo feed --max 500 --sources greenhouse,lever --work-models remote > jobs.jsonl",
     'jobo feed --all --locations "country=United States" --job-subcategories Nursing --company-is-agency false --cursor-file nursing.cursor --output nursing.jsonl --append',
     "jobo feed --max 1000 --updated-after 24h --exclude-employment-types internship --csv -o new-jobs.csv",
+    'jobo feed --max 500 --industries "Software Development" --company-primary-industries Finance --company-sizes 201-500,501-1000',
+    "jobo feed --max 200 --body @feed.json --cursor-file feed.cursor -o jobs.jsonl --append",
   ],
   run,
 };

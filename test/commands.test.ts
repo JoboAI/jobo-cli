@@ -113,6 +113,42 @@ describe("jobo expired", () => {
     expect(h.stdout().split("\n")[0]).toBe('{"id":"e0"}');
     expect(h.stderr()).toContain("next cursor: 15000");
   });
+
+  // The harness clock reads 2026-11-20T12:00:00Z.
+  it.each([
+    ["8d", "more than 7 days back"],
+    ["2w", "more than 7 days back"],
+    ["2026-11-13T11:59:59Z", "more than 7 days back"],
+    ["2026-11-12", "more than 7 days back"],
+    ["2026-11-20T12:00:01Z", "in the future"],
+    ["2027-01-01", "in the future"],
+  ])("refuses --since %s before sending anything: it is %s", async (since, reason) => {
+    const h = harness({ env });
+    expect(await h.run("expired", "--since", since)).toBe(2);
+    expect(h.requests).toHaveLength(0);
+    expect(h.stderr()).toContain(`--since ${since} is ${reason}`);
+  });
+
+  it("names the earliest start the API accepts", async () => {
+    const h = harness({ env });
+    await h.run("expired", "--since", "30d");
+    expect(h.stderr()).toContain("the earliest start now is 2026-11-13T12:00:00.000Z");
+  });
+
+  it.each([
+    ["6d", "2026-11-14T12:00:00.000Z"],
+    ["2026-11-14", "2026-11-14"],
+    ["2026-11-13T12:05:00Z", "2026-11-13T12:05:00Z"],
+    // The edge itself would be a moment too old by the time the API reads it: it is pulled in by five minutes.
+    ["7d", "2026-11-13T12:05:00.000Z"],
+    ["168h", "2026-11-13T12:05:00.000Z"],
+    ["1w", "2026-11-13T12:05:00.000Z"],
+    ["2026-11-13T12:00:30Z", "2026-11-13T12:05:00.000Z"],
+  ])("sends --since %s as %s", async (since, sent) => {
+    const h = harness({ env, responder: () => json(200, { job_ids: [], next_cursor: null, has_more: false }) });
+    expect(await h.run("expired", "--since", since)).toBe(0);
+    expect(new URL(h.requests[0]?.url ?? "").searchParams.get("expired_since")).toBe(sent);
+  });
 });
 
 describe("jobo company and companies", () => {
@@ -145,13 +181,139 @@ describe("jobo company and companies", () => {
     expect(url.pathname).toBe("/api/connectors/companies/suggest");
     expect(url.searchParams.get("q")).toBe("stripe");
     expect(url.searchParams.get("limit")).toBe("5");
-    expect(h.stdout()).toMatch(/Stripe\s+stripe\.com\s+US\s+412\s+c1 c2/);
+    expect(h.stdout()).toMatch(/Stripe\s+stripe\.com\s+US\s+412\s+c1,c2/);
+  });
+
+  it("prints a --companies line that pastes straight into search and the feed", async () => {
+    const ids = ["b5e6f7a8-1234-5678-9abc-def012345678", "0a1b2c3d-4e5f-6789-abcd-ef0123456789"];
+    const suggestions = [
+      { id: ids[0], ids, name: "Stripe", domain: "stripe.com", country: "US", job_count: 412 },
+      { id: "c9", ids: ["c9"], name: "Stripe Press", domain: null, country: "US", job_count: 0 },
+    ];
+    const h = harness({ env, responder: () => json(200, { suggestions }) });
+    expect(await h.run("companies", "stripe")).toBe(0);
+    // Piped: stdout is the API's JSON, untouched; the line to paste is a note on stderr.
+    expect(JSON.parse(h.stdout())).toEqual({ suggestions });
+    const pasted = /--companies (\S+)$/m.exec(h.stderr())?.[1];
+    expect(h.stderr()).toContain(`to filter on Stripe (the first match), in search or the feed: --companies ${ids.join(",")}`);
+
+    const search = harness({ env, responder: () => json(200, { jobs: [], total: 0, page: 1, page_size: 10, total_pages: 0, facets: {} }) });
+    await search.run("search", "--companies", pasted ?? "");
+    expect(search.body().companies).toEqual({ include: ids });
+
+    const feed = harness({ env, responder: () => json(200, { jobs: [], next_cursor: null, has_more: false }) });
+    await feed.run("feed", "--max", "1", "--companies", pasted ?? "");
+    expect(feed.body().companies).toEqual({ include: ids });
+  });
+
+  it("shows every id whole in a narrow terminal, so the cell can be copied", async () => {
+    const ids = ["b5e6f7a8-1234-5678-9abc-def012345678", "0a1b2c3d-4e5f-6789-abcd-ef0123456789"];
+    const suggestions = [{ id: ids[0], ids, name: "Stripe Payments Europe Limited", domain: "stripe.com", country: "IE", job_count: 412 }];
+    const h = harness({ env, tty: true, columns: 80, responder: () => json(200, { suggestions }) });
+    await h.run("companies", "stripe");
+    expect(h.stdout().trimEnd().split("\n")[1]?.endsWith(ids.join(","))).toBe(true);
+  });
+
+  it("prints no --companies line when nothing matched, or with --quiet", async () => {
+    const none = harness({ env, responder: () => json(200, { suggestions: [] }) });
+    await none.run("companies", "zzzz");
+    expect(none.stderr()).toBe("");
+
+    const quiet = harness({ env, responder: () => json(200, { suggestions: [{ id: "c1", ids: ["c1"], name: "Stripe", domain: "stripe.com" }] }) });
+    await quiet.run("companies", "stripe", "--quiet");
+    expect(quiet.stderr()).toBe("");
   });
 
   it("refuses a one-character query without a request", async () => {
     const h = harness({ env });
     expect(await h.run("companies", "s")).toBe(2);
     expect(h.requests).toHaveLength(0);
+  });
+});
+
+describe("jobo locations", () => {
+  const suggestions = [
+    { city: "Berlin", region: "Berlin", country: "Germany", latitude: 52.52, longitude: 13.4, display_name: "Berlin, Berlin, Germany", country_code: "DE" },
+    { city: "New Berlin", region: "Wisconsin", country: "United States", latitude: 42.97, longitude: -88.1, display_name: "New Berlin, Wisconsin, United States", country_code: "US" },
+    { city: null, region: null, country: null, latitude: null, longitude: null, display_name: "Berlin Seamount", country_code: null },
+  ];
+
+  it("looks places up for free and prints the feed's --locations value beside each", async () => {
+    const h = harness({ env, tty: true, columns: 160, responder: () => json(200, { suggestions }) });
+    expect(await h.run("locations", "berlin", "--limit", "3")).toBe(0);
+    expect(h.requests).toHaveLength(1);
+    const url = new URL(h.requests[0]?.url ?? "");
+    expect(h.requests[0]?.method).toBe("GET");
+    expect(url.pathname).toBe("/api/connectors/locations/suggest");
+    expect(url.searchParams.get("q")).toBe("berlin");
+    expect(url.searchParams.get("limit")).toBe("3");
+
+    const rows = h.stdout().trimEnd().split("\n");
+    expect(rows[0]).toMatch(/^PLACE\s+CC\s+FEED --LOCATIONS VALUE$/);
+    expect(rows[1]).toMatch(/^Berlin, Berlin, Germany\s+DE\s+country=Germany,region=Berlin,city=Berlin$/);
+    expect(rows[2]).toMatch(/^New Berlin, Wisconsin, United States\s+US\s+country=United States,region=Wisconsin,city=New Berlin$/);
+    // No country, so nothing the feed could anchor on.
+    expect(rows[3]).toBe("Berlin Seamount");
+  });
+
+  it("prints paste-ready flags for the first match on stderr, quoted where the shell needs it", async () => {
+    const h = harness({ env, responder: () => json(200, { suggestions: suggestions.slice(1) }) });
+    expect(await h.run("locations", "new", "berlin")).toBe(0);
+    expect(new URL(h.requests[0]?.url ?? "").searchParams.get("q")).toBe("new berlin");
+    expect(h.stderr()).toBe(
+      'search (the first match): --location "New Berlin, Wisconsin, United States"\n' +
+        'feed (the first match): --locations "country=United States,region=Wisconsin,city=New Berlin"\n',
+    );
+  });
+
+  it("the printed --locations value is what the feed sends", async () => {
+    const h = harness({ env, responder: () => json(200, { suggestions: suggestions.slice(0, 1) }) });
+    await h.run("locations", "berlin");
+    expect(h.stderr()).toContain("feed: --locations country=Germany,region=Berlin,city=Berlin\n");
+    const value = /--locations (.+)$/m.exec(h.stderr())?.[1] ?? "";
+
+    const feed = harness({ env, responder: () => json(200, { jobs: [], next_cursor: null, has_more: false }) });
+    await feed.run("feed", "--max", "1", "--locations", value);
+    expect(feed.body().locations).toEqual([{ country: "Germany", region: "Berlin", city: "Berlin" }]);
+  });
+
+  it("adds the feed value to each JSON record and CSV row, and leaves the rest as the API sent it", async () => {
+    const asJson = harness({ env, responder: () => json(200, { suggestions }) });
+    await asJson.run("locations", "berlin");
+    expect(JSON.parse(asJson.stdout())).toEqual({
+      suggestions: [
+        { ...suggestions[0], feed_location: "country=Germany,region=Berlin,city=Berlin" },
+        { ...suggestions[1], feed_location: "country=United States,region=Wisconsin,city=New Berlin" },
+        { ...suggestions[2], feed_location: null },
+      ],
+    });
+
+    const asCsv = harness({ env, responder: () => json(200, { suggestions: suggestions.slice(0, 1) }) });
+    await asCsv.run("locations", "berlin", "--csv");
+    expect(asCsv.stdout()).toBe(
+      'display_name,city,region,country,country_code,latitude,longitude,feed_location\r\n"Berlin, Berlin, Germany",Berlin,Berlin,Germany,DE,52.52,13.4,"country=Germany,region=Berlin,city=Berlin"\r\n',
+    );
+  });
+
+  it("says so when nothing matches, and refuses a query the API would not answer", async () => {
+    const none = harness({ env, tty: true, responder: () => json(200, { suggestions: [] }) });
+    expect(await none.run("locations", "zzzz")).toBe(0);
+    expect(none.stdout()).toBe("No place starts with that.\n");
+    expect(none.stderr()).toBe("");
+
+    const h = harness({ env });
+    expect(await h.run("locations", "b")).toBe(2);
+    expect(await h.run("locations")).toBe(2);
+    expect(await h.run("locations", "berlin", "--limit", "11")).toBe(2);
+    expect(h.requests).toHaveLength(0);
+  });
+
+  it("is listed as free, next to the billed geocode", async () => {
+    const h = harness();
+    await h.run("--help");
+    expect(h.stdout()).toMatch(/locations\s+Find places by name.*\(free\)/);
+    await h.run("locations", "--help");
+    expect(h.stdout()).toContain("unlike `jobo geocode`");
   });
 });
 
@@ -221,6 +383,27 @@ describe("jobo filters and occupations", () => {
     expect(await h.run("filters", "salaries")).toBe(2);
     expect(h.requests).toHaveLength(0);
     expect(h.stderr()).toContain("job_subcategories");
+  });
+
+  it.each(["job_categories", "job-categories", "Job-Categories", "JOB_CATEGORIES", "jobcategories"])("takes the facet spelled %s", async (spelling) => {
+    const h = harness({ env, responder: () => json(200, { facet: "job_categories", options: [{ key: "healthcare", count: 9, name: "Healthcare" }] }) });
+    expect(await h.run("filters", spelling, "health")).toBe(0);
+    const url = new URL(h.requests[0]?.url ?? "");
+    expect(url.pathname).toBe("/api/connectors/filter-options/job_categories");
+    expect(url.searchParams.get("q")).toBe("health");
+  });
+
+  it("suggests the facet that was meant, or the command that holds what was asked for", async () => {
+    const h = harness({ env });
+    expect(await h.run("filters", "job-categoris")).toBe(2);
+    expect(h.stderr()).toContain('Unknown facet "job-categoris". Did you mean "job_categories"?');
+    expect(await h.run("filters", "skill")).toBe(2);
+    expect(h.stderr()).toContain('Did you mean "skills"?');
+    expect(await h.run("filters", "companies")).toBe(2);
+    expect(h.stderr()).toContain("Companies are looked up with `jobo companies <query>`.");
+    expect(await h.run("filters", "locations")).toBe(2);
+    expect(h.stderr()).toContain("Places are looked up with `jobo locations <query>`.");
+    expect(h.requests).toHaveLength(0);
   });
 
   it("prints the taxonomy nested as JSON and flat as CSV", async () => {
