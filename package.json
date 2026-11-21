@@ -1,0 +1,61 @@
+{
+  "name": "jobo-cli",
+  "version": "0.1.0",
+  "description": "Command-line client for the Jobo jobs API: search live job listings from employer career sites and 200+ ATS platforms, stream the job feed, and look up companies, locations and filter values.",
+  "type": "module",
+  "bin": {
+    "jobo": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "tsup --silent && vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build && npm test",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "jobo",
+    "cli",
+    "jobs",
+    "job search",
+    "job board",
+    "job listings",
+    "job feed",
+    "career site",
+    "ats",
+    "agent skill"
+  ],
+  "author": "Jobo <support@jobo.world>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JoboAI/jobo-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JoboAI/jobo-cli/issues"
+  },
+  "homepage": "https://jobo.world/integrations/cli",
+  "dependencies": {},
+  "devDependencies": {
+    "@jobo-ai/connector-core": "0.5.0",
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  }
+}

@@ -1,0 +1,889 @@
+{
+  "serverUrl": "https://jobs-mcp.jobo.world/mcp",
+  "serverName": "jobo-job-search",
+  "clients": [
+    {
+      "slug": "claude-code",
+      "name": "Claude Code",
+      "vendor": "Anthropic",
+      "category": "coding-agent",
+      "productUrl": "https://claude.com/product/claude-code",
+      "docsUrl": "https://code.claude.com/docs/en/mcp",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "command",
+        "command": "claude mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "path": "~/.claude.json",
+        "projectPath": ".mcp.json",
+        "language": "bash",
+        "snippet": "claude mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "uiSteps": []
+      },
+      "signIn": "Start Claude Code and run /mcp. The server shows as needing authentication; select it and complete the sign-in in the browser. From a shell, claude mcp login jobo-job-search does the same.",
+      "verify": "Run claude mcp list and check that jobo-job-search shows as connected, or open /mcp inside a session to see the server and its tools.",
+      "notes": [
+        "The command adds the server for the current project only. Add --scope user to make it available in every project, or --scope project to write a shared .mcp.json.",
+        "Headless runs (claude -p) cannot complete a browser sign-in. Sign in once interactively first."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://code.claude.com/docs/en/mcp",
+        "https://code.claude.com/docs/en/mcp.md"
+      ]
+    },
+    {
+      "slug": "codex",
+      "name": "Codex",
+      "vendor": "OpenAI",
+      "category": "coding-agent",
+      "productUrl": "https://developers.openai.com/codex/cli",
+      "docsUrl": "https://learn.chatgpt.com/docs/extend/mcp?surface=cli",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "command",
+        "command": "codex mcp add jobo-job-search --url https://jobs-mcp.jobo.world/mcp\ncodex mcp login jobo-job-search",
+        "path": "~/.codex/config.toml",
+        "projectPath": ".codex/config.toml",
+        "language": "bash",
+        "snippet": "codex mcp add jobo-job-search --url https://jobs-mcp.jobo.world/mcp\ncodex mcp login jobo-job-search",
+        "uiSteps": []
+      },
+      "signIn": "Run codex mcp login jobo-job-search, which opens the browser for the Jobo sign-in. Add --no-browser to print the URL instead.",
+      "verify": "Run codex mcp list, or type /mcp in the Codex TUI to see the active MCP servers.",
+      "notes": [
+        "codex mcp add does not sign you in; codex mcp login is a separate step.",
+        "The Codex CLI, IDE extension and desktop app share ~/.codex/config.toml, so one setup covers all three."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://learn.chatgpt.com/docs/extend/mcp?surface=cli",
+        "https://learn.chatgpt.com/docs/developer-commands?surface=cli",
+        "https://www.conductor.build/docs/reference/mcp"
+      ]
+    },
+    {
+      "slug": "qwen-code",
+      "name": "Qwen Code",
+      "vendor": "Alibaba (Qwen)",
+      "category": "coding-agent",
+      "productUrl": "https://github.com/QwenLM/qwen-code",
+      "docsUrl": "https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "command",
+        "command": "qwen mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "path": "~/.qwen/settings.json",
+        "projectPath": ".qwen/settings.json",
+        "language": "bash",
+        "snippet": "qwen mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "uiSteps": []
+      },
+      "signIn": "Start qwen and open /mcp. Qwen Code discovers the server's OAuth endpoints, registers itself and runs the browser sign-in; select the server in the dialog to complete it.",
+      "verify": "Run /mcp inside Qwen Code to see the server's status and tool list, or qwen mcp list from the shell.",
+      "notes": [
+        "The command writes to ~/.qwen/settings.json. Add --scope project to write .qwen/settings.json instead.",
+        "The sign-in callback uses a local port and needs a browser on the same machine, so it does not work over plain SSH."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/",
+        "https://qwenlm.github.io/qwen-code-docs/en/developers/tools/mcp-server/"
+      ]
+    },
+    {
+      "slug": "opencode",
+      "name": "OpenCode",
+      "vendor": "Anomaly (opencode.ai)",
+      "category": "coding-agent",
+      "productUrl": "https://opencode.ai/",
+      "docsUrl": "https://opencode.ai/docs/mcp-servers/",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "command",
+        "command": "opencode mcp add jobo-job-search --global --url https://jobs-mcp.jobo.world/mcp\nopencode mcp auth jobo-job-search",
+        "path": "~/.config/opencode/opencode.json",
+        "projectPath": "opencode.json",
+        "language": "bash",
+        "snippet": "opencode mcp add jobo-job-search --global --url https://jobs-mcp.jobo.world/mcp\nopencode mcp auth jobo-job-search",
+        "uiSteps": []
+      },
+      "signIn": "Run opencode mcp auth jobo-job-search, which opens the browser. Inside OpenCode, /mcps lists the server and starts the same sign-in.",
+      "verify": "Run opencode mcp list. A ready server shows as connected; one still waiting for sign-in shows as needing authentication.",
+      "notes": [
+        "Without --global the server is added to the current project's opencode.json.",
+        "Over SSH or in a container the browser callback page will not load. Copy that page's URL and paste it into the sign-in prompt.",
+        "These commands are from the current OpenCode documentation. On OpenCode V1, add the server to the config file by hand, then run opencode mcp auth."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://opencode.ai/docs/mcp-servers/",
+        "https://opencode.ai/docs/config/",
+        "https://opencode.ai/v1/docs/mcp-servers/"
+      ]
+    },
+    {
+      "slug": "goose",
+      "name": "Goose",
+      "vendor": "Block",
+      "category": "coding-agent",
+      "productUrl": "https://goose-docs.ai/",
+      "docsUrl": "https://goose-docs.ai/docs/getting-started/using-extensions",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "~/.config/goose/config.yaml",
+        "projectPath": null,
+        "language": "yaml",
+        "snippet": "extensions:\n  jobo-job-search:\n    name: jobo-job-search\n    type: streamable_http\n    uri: https://jobs-mcp.jobo.world/mcp\n    enabled: true\n    timeout: 300",
+        "uiSteps": []
+      },
+      "signIn": "Goose registers itself with the server automatically and opens an OAuth window in your browser. Approve access there.",
+      "verify": "Check that the extension is listed and enabled under goose configure → Toggle Extensions, or in the Extensions list in goose Desktop.",
+      "notes": [
+        "The endpoint key is uri, not url, and the type is streamable_http.",
+        "Prefer a wizard? Run goose configure, select Add Extension, choose Remote Extension (Streamable HTTP) and enter the same URL."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://goose-docs.ai/docs/getting-started/using-extensions",
+        "https://goose-docs.ai/docs/guides/config-files",
+        "https://goose-docs.ai/docs/mcp/neon-mcp"
+      ]
+    },
+    {
+      "slug": "amp",
+      "name": "Amp",
+      "vendor": "Amp (formerly Sourcegraph)",
+      "category": "coding-agent",
+      "productUrl": "https://ampcode.com/",
+      "docsUrl": "https://ampcode.com/docs/customize/mcp",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "command",
+        "command": "amp mcp add jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "path": "~/.config/amp/settings.json",
+        "projectPath": ".amp/settings.json",
+        "language": "bash",
+        "snippet": "amp mcp add jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "uiSteps": []
+      },
+      "signIn": "Start Amp after adding the server. It opens the Jobo sign-in page in your browser; approve access there.",
+      "verify": "Run amp mcp doctor to see the server's status.",
+      "notes": [
+        "A server added to workspace settings (.amp/settings.json) must be approved before it runs: amp mcp approve jobo-job-search.",
+        "To sign in again, run amp mcp oauth logout jobo-job-search and restart Amp."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://ampcode.com/docs/customize/mcp",
+        "https://ampcode.com/manual"
+      ]
+    },
+    {
+      "slug": "warp",
+      "name": "Warp",
+      "vendor": "Warp",
+      "category": "coding-agent",
+      "productUrl": "https://www.warp.dev/",
+      "docsUrl": "https://docs.warp.dev/agents/capabilities/mcp/",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "ui",
+        "command": null,
+        "path": null,
+        "projectPath": null,
+        "language": "json",
+        "snippet": "{\n  \"jobo-job-search\": {\n    \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n  }\n}",
+        "uiSteps": [
+          "Open Settings → Agents → MCP servers and click + Add.",
+          "Paste the JSON below and save.",
+          "Start the server from the MCP servers page if it is not already running."
+        ]
+      },
+      "signIn": "Starting the server without stored credentials opens the Jobo sign-in in your browser. After you approve, Warp stores the credentials on your device and reuses them.",
+      "verify": "On the MCP servers page the server shows as running, with its list of tools. Use View Logs on the server's row if it fails.",
+      "notes": [
+        "This applies to agents running locally in the Warp app. Warp's cloud agents cannot complete an interactive sign-in."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://docs.warp.dev/agents/capabilities/mcp/",
+        "https://docs.warp.dev/agents/capabilities/mcp.md",
+        "https://docs.warp.dev/factories/mcp.md"
+      ]
+    },
+    {
+      "slug": "gemini-cli",
+      "name": "Gemini CLI",
+      "vendor": "Google",
+      "category": "coding-agent",
+      "productUrl": "https://geminicli.com/",
+      "docsUrl": "https://geminicli.com/docs/tools/mcp-server/",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "command",
+        "command": "gemini mcp add --transport http --scope user jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "path": "~/.gemini/settings.json",
+        "projectPath": ".gemini/settings.json",
+        "language": "bash",
+        "snippet": "gemini mcp add --transport http --scope user jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "uiSteps": []
+      },
+      "signIn": "The first connection triggers the OAuth flow and opens a browser for sign-in. Inside Gemini CLI, /mcp auth jobo-job-search starts or repeats it.",
+      "verify": "Run /mcp in the CLI to see the server as connected with its tools, or gemini mcp list from the shell.",
+      "notes": [
+        "--scope user writes ~/.gemini/settings.json. Without it the server is added to the current project only.",
+        "The sign-in needs a local browser, so it fails over SSH and in containers without one."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://geminicli.com/docs/tools/mcp-server/"
+      ]
+    },
+    {
+      "slug": "augment",
+      "name": "Augment",
+      "vendor": "Augment Code",
+      "category": "coding-agent",
+      "productUrl": "https://www.augmentcode.com/product/cli",
+      "docsUrl": "https://docs.augmentcode.com/cli/integrations",
+      "transport": "stdio-bridge",
+      "oauth": "bridge",
+      "install": {
+        "kind": "command",
+        "command": "auggie mcp add jobo-job-search --command npx --args \"-y mcp-remote https://jobs-mcp.jobo.world/mcp\"",
+        "path": "~/.augment/settings.json",
+        "projectPath": ".augment/settings.json",
+        "language": "bash",
+        "snippet": "auggie mcp add jobo-job-search --command npx --args \"-y mcp-remote https://jobs-mcp.jobo.world/mcp\"",
+        "uiSteps": []
+      },
+      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "verify": "Run /mcp inside an Auggie session to see the status of configured servers, or auggie mcp list from the shell.",
+      "notes": [
+        "The command saves to ~/.augment/settings.json. Pass --project to write .augment/settings.json instead.",
+        "Auggie can also add the URL directly (--transport http --url), but its MCP documentation does not describe the OAuth sign-in for remote servers, so this guide uses the bridge."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://docs.augmentcode.com/cli/integrations",
+        "https://docs.augmentcode.com/cli/reference",
+        "https://docs.augmentcode.com/cli/interactive",
+        "https://docs.augmentcode.com/setup-augment/mcp",
+        "https://docs.augmentcode.com/cli/v0/integrations",
+        "https://www.augmentcode.com/changelog/auggie-cli-0-5-8-release-notes",
+        "https://www.augmentcode.com/changelog/auggie-cli-0-21-0-release-notes",
+        "https://www.augmentcode.com/changelog/auggie-cli-0-33-0-release-notes"
+      ]
+    },
+    {
+      "slug": "conductor",
+      "name": "Conductor",
+      "vendor": "Conductor (conductor.build)",
+      "category": "coding-agent",
+      "productUrl": "https://www.conductor.build/",
+      "docsUrl": "https://www.conductor.build/docs/reference/mcp",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "command",
+        "command": "claude mcp add --transport http -s user jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "path": "~/.claude.json",
+        "projectPath": ".mcp.json",
+        "language": "bash",
+        "snippet": "claude mcp add --transport http -s user jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "uiSteps": []
+      },
+      "signIn": "Open Conductor's MCP status dialog (the plug icon in the composer, or /mcp-status) and authenticate the server from its row. Running claude mcp login jobo-job-search in a terminal also works.",
+      "verify": "Click the plug icon in the composer, or run /mcp-status, and refresh the status.",
+      "notes": [
+        "Conductor has no MCP configuration of its own. Claude Code sessions use Claude Code's servers and Codex sessions use Codex's, so for Codex sessions follow the Codex setup instead.",
+        "A session started before the server was added does not see it. Refresh the MCP status and start a new session.",
+        "Enterprise data privacy mode in Conductor disables custom MCP servers."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://www.conductor.build/docs/reference/mcp",
+        "https://www.conductor.build/docs/guides/configure-mcp-servers",
+        "https://code.claude.com/docs/en/mcp"
+      ]
+    },
+    {
+      "slug": "cline",
+      "name": "Cline",
+      "vendor": "Cline Bot Inc.",
+      "category": "coding-agent",
+      "productUrl": "https://cline.bot/",
+      "docsUrl": "https://docs.cline.bot/mcp/mcp-overview",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "~/.cline/data/settings/cline_mcp_settings.json",
+        "projectPath": null,
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"type\": \"streamableHttp\",\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\",\n      \"disabled\": false,\n      \"autoApprove\": []\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "Cline runs a browser authorization for the server. In the Cline CLI, run cline mcp and choose Authorize OAuth to start or repeat it, then approve access in the browser.",
+      "verify": "Open MCP Servers in Cline and confirm jobo-job-search is enabled and its tools are listed.",
+      "notes": [
+        "Keep \"type\": \"streamableHttp\". Without it Cline falls back to the legacy SSE transport, which this server does not offer.",
+        "The file above is the Cline CLI's. In the IDE extension, open MCP Servers → Remote Servers and enter the same name and URL with the Streamable HTTP transport."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://docs.cline.bot/mcp/mcp-overview",
+        "https://docs.cline.bot/mcp/connecting-to-a-remote-server",
+        "https://docs.cline.bot/mcp/adding-and-configuring-servers",
+        "https://github.com/cline/cline/blob/main/CHANGELOG.md",
+        "https://docs.cline.bot/enterprise-solutions/configuration/infrastructure-configuration/control-other-cline-features/mcp-server-controls"
+      ]
+    },
+    {
+      "slug": "roo-code",
+      "name": "Roo Code",
+      "vendor": "Roo Code, Inc.",
+      "category": "coding-agent",
+      "productUrl": "https://github.com/RooCodeInc/Roo-Code",
+      "docsUrl": "https://roocodeinc.github.io/Roo-Code/features/mcp/using-mcp-in-roo",
+      "transport": "stdio-bridge",
+      "oauth": "bridge",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "mcp_settings.json",
+        "projectPath": ".roo/mcp.json",
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "verify": "Open the MCP view in Roo Code and confirm jobo-job-search is listed, enabled, and shows its tools.",
+      "notes": [
+        "Open the global file from Roo Code's MCP view with Edit Global MCP. Edit Project MCP opens .roo/mcp.json.",
+        "On Windows, launch through cmd: set command to cmd and put /c, npx, -y, mcp-remote and the URL in args."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://roocodeinc.github.io/Roo-Code/features/mcp/using-mcp-in-roo",
+        "https://github.com/RooCodeInc/Roo-Code/blob/main/CHANGELOG.md",
+        "https://github.com/RooCodeInc/Roo-Code",
+        "https://github.com/geelen/mcp-remote"
+      ]
+    },
+    {
+      "slug": "amazon-q-developer",
+      "name": "Amazon Q Developer",
+      "vendor": "Amazon Web Services",
+      "category": "coding-agent",
+      "productUrl": "https://aws.amazon.com/q/developer/",
+      "docsUrl": "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "~/.aws/amazonq/mcp.json",
+        "projectPath": ".amazonq/mcp.json",
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"type\": \"http\",\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "In the CLI, start a session and run /mcp, then open the URL it prints and sign in while the session stays open. In the IDE, Amazon Q opens the browser authorization after you save the server.",
+      "verify": "In the CLI, run /tools and confirm the jobo-job-search tools are listed. In the IDE, the server appears in the MCP servers panel with its tools.",
+      "notes": [
+        "In the IDE, open the Amazon Q chat panel, choose the tools icon, then +, select http as the transport and enter the same name and URL.",
+        "Organisations on the Pro tier can turn MCP off or restrict it to an allow-list, in which case a server you add will not load."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html",
+        "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/mcp-ide.html",
+        "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/qdev-mcp.html",
+        "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/mcp-governance.html",
+        "https://aws.amazon.com/about-aws/whats-new/2025/09/amazon-q-developer-remote-mcp-servers",
+        "https://github.com/aws/amazon-q-developer-cli/blob/main/docs/agent-format.md",
+        "https://github.com/aws/amazon-q-developer-cli/blob/main/docs/agent-file-locations.md",
+        "https://github.com/aws/amazon-q-developer-cli"
+      ]
+    },
+    {
+      "slug": "zencoder",
+      "name": "Zencoder",
+      "vendor": "Zencoder",
+      "category": "coding-agent",
+      "productUrl": "https://zencoder.ai/",
+      "docsUrl": "https://docs.zencoder.ai/features/mcp-deep-dive",
+      "transport": "stdio-bridge",
+      "oauth": "bridge",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": null,
+        "projectPath": ".vscode/settings.json",
+        "language": "json",
+        "snippet": "{\n  \"zencoder.mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "verify": "Open Agent Tools in Zencoder and confirm jobo-job-search and its tools appear.",
+      "notes": [
+        "In an existing settings.json, add only the zencoder.mcpServers key.",
+        "In JetBrains IDEs, paste only the inner object (the jobo-job-search entry) under Settings → Tools → Zencoder → MCP Servers.",
+        "Restart the IDE after adding the server."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://docs.zencoder.ai/features/mcp-deep-dive",
+        "https://docs.zencoder.ai/changelog/home",
+        "https://docs.zencoder.ai/llms.txt",
+        "https://github.com/geelen/mcp-remote"
+      ]
+    },
+    {
+      "slug": "jetbrains-ai-assistant",
+      "name": "JetBrains AI Assistant",
+      "vendor": "JetBrains",
+      "category": "coding-agent",
+      "productUrl": "https://www.jetbrains.com/ai-ides/",
+      "docsUrl": "https://www.jetbrains.com/help/ai-assistant/mcp.html",
+      "transport": "stdio-bridge",
+      "oauth": "bridge",
+      "install": {
+        "kind": "ui",
+        "command": null,
+        "path": null,
+        "projectPath": null,
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "uiSteps": [
+          "Open Settings → Tools → AI Assistant → Model Context Protocol (MCP) and click Add.",
+          "Choose the STDIO connection and paste the JSON below.",
+          "Set the server level to global or the current project, click OK, then Apply."
+        ]
+      },
+      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "verify": "In the MCP settings table, check the Status column, and click the status icon to review the tools the server provides.",
+      "notes": [
+        "npx must be on the PATH the IDE sees.",
+        "Organisations that manage AI centrally through JetBrains can block user-added MCP servers."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://www.jetbrains.com/help/ai-assistant/mcp.html",
+        "https://github.com/geelen/mcp-remote"
+      ]
+    },
+    {
+      "slug": "rovo-dev-cli",
+      "name": "Rovo Dev CLI",
+      "vendor": "Atlassian",
+      "category": "coding-agent",
+      "productUrl": "https://www.atlassian.com/software/rovo-dev",
+      "docsUrl": "https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/",
+      "transport": "stdio-bridge",
+      "oauth": "bridge",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "~/.rovodev/mcp.json",
+        "projectPath": null,
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ],\n      \"transport\": \"stdio\"\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "verify": "Run acli rovodev run, then /mcp, and confirm jobo-job-search is listed as enabled with its tools.",
+      "notes": [
+        "acli rovodev mcp opens the file in your editor.",
+        "Rovo Dev CLI uses a transport key where most clients use type."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/",
+        "https://support.atlassian.com/rovo/docs/rovo-dev-and-model-context-protocol-mcp/",
+        "https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/",
+        "https://github.com/geelen/mcp-remote"
+      ]
+    },
+    {
+      "slug": "crush",
+      "name": "Crush",
+      "vendor": "Charmbracelet",
+      "category": "coding-agent",
+      "productUrl": "https://charm.land/crush/",
+      "docsUrl": "https://github.com/charmbracelet/crush/blob/main/README.md#mcps",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "~/.config/crush/crushrc",
+        "projectPath": "./.crushrc",
+        "language": "bash",
+        "snippet": "mcp add jobo-job-search --type http --url \"https://jobs-mcp.jobo.world/mcp\" --oauth true --sessionless true",
+        "uiSteps": []
+      },
+      "signIn": "With --oauth true, Crush registers itself with the server and runs the authorization flow. Complete the Jobo sign-in in the browser.",
+      "verify": "Start crush and confirm jobo-job-search appears as connected. crush logs shows connection errors if it does not.",
+      "notes": [
+        "crushrc is a shell-style file, not JSON. Add the line as it is.",
+        "--sessionless true tells Crush the server does not issue session IDs, which this one does not."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://github.com/charmbracelet/crush/blob/main/README.md",
+        "https://github.com/charmbracelet/crush/blob/main/docs/config/README.md"
+      ]
+    },
+    {
+      "slug": "cursor",
+      "name": "Cursor",
+      "vendor": "Anysphere",
+      "category": "ide",
+      "productUrl": "https://cursor.com/",
+      "docsUrl": "https://cursor.com/docs/context/mcp",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "~/.cursor/mcp.json",
+        "projectPath": ".cursor/mcp.json",
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "Cursor detects that the server requires OAuth and opens the Jobo sign-in page in your browser. Sign in, approve access and return to Cursor.",
+      "verify": "Open Customize in the Cursor sidebar and check that jobo-job-search is listed and switched on. If it is not, open the Output panel and pick MCP Logs.",
+      "notes": [
+        "A remote entry needs only url. No type field is required.",
+        "Enterprise admins can restrict which MCP servers run, in which case a server you add may be blocked."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://cursor.com/docs/context/mcp",
+        "https://cursor.com/docs/context/mcp/install-links"
+      ]
+    },
+    {
+      "slug": "vs-code",
+      "name": "VS Code",
+      "vendor": "Microsoft",
+      "category": "ide",
+      "productUrl": "https://code.visualstudio.com/",
+      "docsUrl": "https://code.visualstudio.com/docs/agent-customization/mcp-servers",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "~/.copilot/mcp-config.json",
+        "projectPath": ".mcp.json",
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"type\": \"http\",\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\",\n      \"tools\": [\n        \"*\"\n      ]\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "Complete the sign-in when VS Code prompts for it, or choose Authenticate in the server's actions, then finish the Jobo sign-in in the browser.",
+      "verify": "Ask Copilot a question that needs job data and expand the tool call in the conversation to confirm it came from jobo-job-search.",
+      "notes": [
+        "Prefer the guided flow? With Copilot selected in the Chat view, run Chat: Open Customizations, select MCP Servers, then Add Server. Choose HTTP, enter the URL and the server ID jobo-job-search, and select Global, then Copilot Global.",
+        "The older .vscode/mcp.json format, with a top-level servers key, belongs to VS Code's Local harness. The documentation marks it as deprecated and due for removal in February 2027.",
+        "An organisation policy can restrict MCP servers to an allow-list."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://code.visualstudio.com/docs/agent-customization/mcp-servers",
+        "https://code.visualstudio.com/docs/agents/reference/mcp-configuration",
+        "https://code.visualstudio.com/docs/agents/run/manage-mcp-servers",
+        "https://code.visualstudio.com/api/extension-guides/ai/mcp",
+        "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers"
+      ]
+    },
+    {
+      "slug": "visual-studio",
+      "name": "Visual Studio",
+      "vendor": "Microsoft",
+      "category": "ide",
+      "productUrl": "https://visualstudio.microsoft.com/",
+      "docsUrl": "https://learn.microsoft.com/en-us/visualstudio/ide/mcp-servers?view=visualstudio",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "%USERPROFILE%\\.mcp.json",
+        "projectPath": "<SOLUTIONDIR>\\.mcp.json",
+        "language": "json",
+        "snippet": "{\n  \"servers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "Open the .mcp.json file in Visual Studio and select Authentication Required in the CodeLens above the server entry, then complete the Jobo sign-in in the browser.",
+      "verify": "In the Copilot chat pane, choose Agent mode and open Tools. The jobo-job-search tools are listed there; they are off by default and must be ticked before use.",
+      "notes": [
+        "Requires Visual Studio 2026, or Visual Studio 2022 version 17.14 or later.",
+        "The top-level key is servers, not mcpServers.",
+        "If the CodeLens above the server entry is missing, enable it under Tools → Options → Text Editor → CodeLens."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://learn.microsoft.com/en-us/visualstudio/ide/mcp-servers?view=visualstudio"
+      ]
+    },
+    {
+      "slug": "windsurf",
+      "name": "Windsurf",
+      "vendor": "Cognition",
+      "category": "ide",
+      "productUrl": "https://devin.ai/desktop",
+      "docsUrl": "https://docs.devin.ai/desktop/devin-local/customizations",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "~/.config/devin/mcp_config.json",
+        "projectPath": ".devin/mcp_config.json",
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\",\n      \"transport\": \"http\"\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "The server appears under Customize → MCPs with a Needs authentication state. Click Authenticate and complete the Jobo sign-in in the browser.",
+      "verify": "Customize → MCPs lists jobo-job-search as enabled, without the Needs authentication state.",
+      "notes": [
+        "Windsurf has been renamed Devin Desktop. The file above is the location its current documentation gives.",
+        "From the Devin CLI: devin mcp add jobo-job-search https://jobs-mcp.jobo.world/mcp -s user, then devin mcp login jobo-job-search."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://docs.devin.ai/desktop/devin-local/customizations",
+        "https://docs.devin.ai/cli/extensibility/mcp/configuration",
+        "https://docs.devin.ai/cli/extensibility/mcp/overview",
+        "https://devin.ai/desktop"
+      ]
+    },
+    {
+      "slug": "kiro",
+      "name": "Kiro",
+      "vendor": "Amazon Web Services",
+      "category": "ide",
+      "productUrl": "https://kiro.dev/",
+      "docsUrl": "https://kiro.dev/docs/mcp/configuration/",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "~/.kiro/settings/mcp.json",
+        "projectPath": ".kiro/settings/mcp.json",
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "Kiro runs the browser sign-in automatically when it connects: it registers itself and opens the Jobo authorization page. If a token later expires, use the Re-authenticate button in the MCP panel.",
+      "verify": "Check the MCP servers tab in the Kiro panel to confirm jobo-job-search is connected.",
+      "notes": [
+        "MCP support must be switched on: open Settings, search for MCP and enable it.",
+        "Open the file from the Command Palette with Kiro: Open user MCP config (JSON)."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://kiro.dev/docs/mcp/configuration/",
+        "https://kiro.dev/docs/mcp/"
+      ]
+    },
+    {
+      "slug": "zed",
+      "name": "Zed",
+      "vendor": "Zed Industries",
+      "category": "ide",
+      "productUrl": "https://zed.dev/",
+      "docsUrl": "https://zed.dev/docs/ai/mcp",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "config-file",
+        "command": null,
+        "path": "Zed's settings.json",
+        "projectPath": null,
+        "language": "json",
+        "snippet": "{\n  \"context_servers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
+        "uiSteps": []
+      },
+      "signIn": "Because the entry has no Authorization header, Zed prompts you to authenticate. Follow the prompt and finish the Jobo sign-in in the browser.",
+      "verify": "Open Settings → AI → MCP Servers. The indicator next to jobo-job-search is green when the server is active.",
+      "notes": [
+        "Open the file with the zed: open settings file action.",
+        "The key is context_servers, not mcpServers. Merge the entry into your existing settings rather than replacing the file.",
+        "Or use the UI: Settings → AI → MCP Servers → Add Server → Add Remote Server."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://zed.dev/docs/ai/mcp",
+        "https://zed.dev/docs/reference/all-settings"
+      ]
+    },
+    {
+      "slug": "jetbrains",
+      "name": "JetBrains IDEs",
+      "vendor": "JetBrains",
+      "category": "ide",
+      "productUrl": "https://www.jetbrains.com/ai/",
+      "docsUrl": "https://www.jetbrains.com/help/ai-assistant/mcp.html",
+      "transport": "stdio-bridge",
+      "oauth": "bridge",
+      "install": {
+        "kind": "ui",
+        "command": null,
+        "path": null,
+        "projectPath": null,
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "uiSteps": [
+          "Open Settings → Tools → AI Assistant → Model Context Protocol (MCP) and click Add.",
+          "Choose the STDIO connection and paste the JSON below.",
+          "Set the server level to global or the current project, click OK, then Apply."
+        ]
+      },
+      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "verify": "On the same settings page, the Status column shows the connection state. Click its icon to review the list of tools.",
+      "notes": [
+        "Junie has its own MCP settings, under Settings → Tools → Junie → MCP Settings, and takes the same mcpServers entry.",
+        "This is the IDE as an MCP client. The separate Enable MCP Server setting exposes the IDE's own tools to other clients and is unrelated.",
+        "npx must be on the PATH of the IDE process."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://www.jetbrains.com/help/ai-assistant/mcp.html",
+        "https://junie.jetbrains.com/docs/junie-ide-plugin.html",
+        "https://junie.jetbrains.com/docs/junie-plugin-mcp-settings.html",
+        "https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html",
+        "https://github.com/geelen/mcp-remote"
+      ]
+    },
+    {
+      "slug": "trae",
+      "name": "Trae",
+      "vendor": "ByteDance",
+      "category": "ide",
+      "productUrl": "https://www.trae.ai/",
+      "docsUrl": "https://docs.trae.ai/ide/add-mcp-servers",
+      "transport": "stdio-bridge",
+      "oauth": "bridge",
+      "install": {
+        "kind": "ui",
+        "command": null,
+        "path": null,
+        "projectPath": ".trae/mcp.json",
+        "language": "json",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "uiSteps": [
+          "Open Settings → MCP.",
+          "Click Add, then Create Manually.",
+          "Paste the JSON below and click Confirm."
+        ]
+      },
+      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "verify": "The server appears in the MCP server list under Settings → MCP, and its tools can be selected for an agent.",
+      "notes": [
+        "For a project-level server, turn on Project MCP under Settings → MCP and put the same JSON in .trae/mcp.json.",
+        "Trae passes at most 40 MCP tools to the model across all servers. Jobo's server has seven."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://docs.trae.ai/ide/model-context-protocol",
+        "https://docs.trae.ai/ide/add-mcp-servers",
+        "https://docs.trae.ai/ide/mcp-server-install-links",
+        "https://docs.trae.ai/ide/use-mcp-servers-in-agents",
+        "https://docs.trae.ai/ide/troubleshoot-mcp-server-related-issues",
+        "https://github.com/geelen/mcp-remote"
+      ]
+    },
+    {
+      "slug": "chatgpt",
+      "name": "ChatGPT",
+      "vendor": "OpenAI",
+      "category": "llm",
+      "productUrl": "https://chatgpt.com/",
+      "docsUrl": "https://developers.openai.com/api/docs/guides/custom-mcp-server",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "ui",
+        "command": null,
+        "path": null,
+        "projectPath": null,
+        "language": "bash",
+        "snippet": "https://jobs-mcp.jobo.world/mcp",
+        "uiSteps": [
+          "On ChatGPT web, open Plugins.",
+          "Select the plus button, then Add custom MCP server.",
+          "Enter a name and, optionally, a description.",
+          "Under Connection, enter the server URL below and set authentication to OAuth.",
+          "Review the risk warning, tick I understand and want to continue, select Create as a plugin, then install it."
+        ]
+      },
+      "signIn": "Complete the Jobo authorization prompt in the browser when ChatGPT asks for it.",
+      "verify": "The review step after Create as a plugin lists the tools ChatGPT discovered. Then start a new conversation, type @ and select the plugin.",
+      "notes": [
+        "Custom MCP server connections are available on ChatGPT Business and Enterprise/Edu, on the web. On Business, only admins and owners can create them.",
+        "The server implements the search and fetch tools, the pair deep research uses."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://developers.openai.com/api/docs/guides/custom-mcp-server",
+        "https://developers.openai.com/plugins/deploy/connect-chatgpt",
+        "https://developers.openai.com/api/docs/mcp",
+        "https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt"
+      ]
+    },
+    {
+      "slug": "claude",
+      "name": "Claude",
+      "vendor": "Anthropic",
+      "category": "llm",
+      "productUrl": "https://claude.ai/",
+      "docsUrl": "https://claude.com/docs/connectors/custom/remote-mcp",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "ui",
+        "command": null,
+        "path": null,
+        "projectPath": null,
+        "language": "bash",
+        "snippet": "https://jobs-mcp.jobo.world/mcp",
+        "uiSteps": [
+          "Open Connectors at claude.ai/customize/connectors.",
+          "Select Add, then Add custom connector.",
+          "Enter a name and the server URL below, then click Continue.",
+          "Keep the detected authentication options and click Add."
+        ]
+      },
+      "signIn": "Click Connect on the connector and complete the Jobo sign-in in the browser.",
+      "verify": "In a chat, click + and check the connector is switched on under Connectors.",
+      "notes": [
+        "Custom connectors are available on every plan. The Free plan allows one.",
+        "On Team and Enterprise, an Owner adds the connector under Organization settings → Connectors, and members then click Connect.",
+        "The connector is account-level: once added it works in claude.ai, Claude Desktop and the mobile apps."
+      ],
+      "verified": "2026-11-20",
+      "sources": [
+        "https://claude.com/docs/connectors/custom/remote-mcp",
+        "https://claude.com/docs/connectors/building",
+        "https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp"
+      ]
+    }
+  ]
+}
