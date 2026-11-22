@@ -155,9 +155,17 @@ describe("the built binary", () => {
   });
 
   it("mcp prints a client's setup offline", async () => {
+    // A coding agent gets the developer server, with the key read from the environment.
     const result = await jobo(["mcp", "claude-code"]);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("claude mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp");
+    expect(result.stdout).toContain(
+      'claude mcp add --transport http jobo-developer https://dev-mcp.jobo.world/mcp --header "Authorization: Bearer $JOBO_API_KEY"',
+    );
+
+    // An assistant gets job search.
+    const assistant = await jobo(["mcp", "claude"]);
+    expect(assistant.code).toBe(0);
+    expect(assistant.stdout).toContain("jobo-job-search at https://jobs-mcp.jobo.world/mcp");
   });
 
   it("a command with no key exits 3 without sending anything", async () => {

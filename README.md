@@ -343,12 +343,17 @@ An existing copy is left alone unless you pass `--overwrite`.
 
 ## MCP server
 
-For an AI client, the hosted Jobo MCP server (`https://jobs-mcp.jobo.world/mcp`) gives the same search
-without a terminal. It signs you in with your Jobo account through OAuth, so there is no API key to
-paste, and its searches bill like `jobo search`.
+Jobo runs two hosted MCP servers, and `jobo mcp` prints how to add the right one to an AI client:
+
+- **Developer server** (`https://dev-mcp.jobo.world/mcp`), for coding agents and IDEs. It looks up company
+  ids, occupations and filter values and builds a checked search request while you write code. It takes
+  your API key as a header, the same `JOBO_API_KEY` this CLI reads, and every tool on it is free.
+- **Job search server** (`https://jobs-mcp.jobo.world/mcp`), for AI assistants. It gives the same search
+  as this CLI without a terminal. It signs you in with your Jobo account through OAuth, so there is no API
+  key to paste, and its searches bill like `jobo search`.
 
 ```bash
-jobo mcp                # the clients this CLI has instructions for
+jobo mcp                # the clients this CLI has instructions for, and the server each one gets
 jobo mcp claude-code    # the command to run, or the config to paste, for one client
 jobo mcp cursor --json
 ```

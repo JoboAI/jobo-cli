@@ -176,9 +176,11 @@ jobo feed --max 200 --locations "country=United States,region=Texas,city=Austin"
   --job-subcategories Nursing --cursor-file austin.cursor --output austin-nursing.jsonl --append
 ```
 
-Connect an AI client to the hosted MCP server instead of using the CLI:
+Connect an AI client to a hosted Jobo MCP server. Coding agents and IDEs get the developer server (free
+lookups and a request builder, API key header); assistants get the job search server (OAuth sign-in,
+searches billed per job):
 
 ```bash
-jobo mcp            # lists supported clients
+jobo mcp            # lists supported clients and the server each one gets
 jobo mcp cursor     # prints the config to add; it never edits files itself
 ```

@@ -6,6 +6,16 @@
 
 - **`jobo mcp perplexity`:** how to add the Jobo MCP server to Perplexity as a custom remote connector.
 
+### Changed
+
+- **`jobo mcp <client>` for coding agents and IDEs** now prints the setup for the developer MCP server
+  (`https://dev-mcp.jobo.world/mcp`): free lookups and a request builder, with your API key sent as a
+  header. Assistants (ChatGPT, Claude, Perplexity) and Visual Studio still get the job search server, with
+  OAuth sign-in. `jobo mcp` lists which server each client is set up for.
+- `jobo mcp <client> --json` reports that client's server in `serverUrl` and `serverName`, and the file
+  gains a `servers` map.
+- Sign-in steps for the job search server say that sign-in starts on the first tool call.
+
 ## 0.1.0
 
 First release.

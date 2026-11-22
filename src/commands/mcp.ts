@@ -17,9 +17,12 @@ export interface McpClient {
   category: "coding-agent" | "ide" | "llm" | "ai-builder";
   /** The client's own MCP documentation. */
   docsUrl: string;
+  /** Which hosted server the entry sets up: a key of `servers`. Absent means job search. */
+  server?: string;
   /** `http`: the client speaks Streamable HTTP itself. `stdio-bridge`: it needs `npx mcp-remote`. */
   transport: "http" | "stdio-bridge";
-  oauth: "native" | "bridge" | "unsupported";
+  /** Who runs the OAuth sign-in. `none` for a server that takes an API key header instead. */
+  oauth: "native" | "bridge" | "unsupported" | "none";
   install: {
     kind: "command" | "config-file" | "ui";
     command: string | null;
@@ -29,7 +32,7 @@ export interface McpClient {
     snippet: string | null;
     uiSteps: string[];
   };
-  /** How the OAuth sign-in happens in this client. */
+  /** How this client authenticates: the OAuth sign-in, or where the API key goes. */
   signIn?: string;
   /** How to confirm the server is connected. */
   verify?: string;
@@ -38,13 +41,47 @@ export interface McpClient {
   sources: string[];
 }
 
+/** One hosted Jobo MCP server. */
+export interface McpServer {
+  name: string;
+  url: string;
+  /** `oauth`: sign in with a Jobo account. `api-key`: send a Jobo API key as a header. */
+  auth: "oauth" | "api-key";
+}
+
 export interface McpClientsFile {
+  /** The job-search server: the one an entry is for when it names none. */
   serverUrl: string;
   serverName: string;
+  /** Every hosted server, by key. */
+  servers?: Record<string, McpServer>;
   clients: McpClient[];
 }
 
 export const MCP_CLIENTS = data as unknown as McpClientsFile;
+
+const JOB_SEARCH = "job-search";
+
+/** What each server is for, in the order they are listed. */
+const SERVERS: Record<string, { label: string; summary: string }> = {
+  developer: {
+    label: "developer",
+    summary:
+      "for coding agents and IDEs. Looks up company ids, occupations and filter values and builds a checked search request while you write code. Takes your Jobo API key as a header; every tool is free.",
+  },
+  [JOB_SEARCH]: {
+    label: "job search",
+    summary:
+      "for AI assistants. Searches and reads live jobs. Sign-in is OAuth with your Jobo account, so no API key is involved; searches bill like `jobo search`, per job returned.",
+  },
+};
+
+/** The server an entry sets up. */
+export function serverOf(file: McpClientsFile, client: Pick<McpClient, "server">): McpServer {
+  return file.servers?.[client.server ?? JOB_SEARCH] ?? { name: file.serverName, url: file.serverUrl, auth: "oauth" };
+}
+
+const serverLabel = (client: Pick<McpClient, "server">): string => SERVERS[client.server ?? JOB_SEARCH]?.label ?? client.server ?? "";
 
 const CATEGORIES: Record<string, string> = {
   "coding-agent": "Coding agents",
@@ -60,6 +97,7 @@ const SIGN_IN: Record<string, string> = {
   native: "OAuth in the client: sign in with your Jobo account, no API key",
   bridge: "OAuth through the mcp-remote bridge, which opens the Jobo sign-in in your browser; no API key",
   unsupported: "this client cannot complete the OAuth sign-in the server requires",
+  none: "your Jobo API key, sent as a header; there is no sign-in",
 };
 const HOW: Record<string, string> = { command: "command", "config-file": "config file", ui: "settings UI" };
 
@@ -69,11 +107,21 @@ export function validateMcpClients(file: unknown): string[] {
   const root = (file ?? {}) as Partial<McpClientsFile>;
   if (typeof root.serverUrl !== "string" || !/^https:\/\//.test(root.serverUrl)) problems.push("serverUrl must be an https URL");
   if (typeof root.serverName !== "string" || root.serverName === "") problems.push("serverName is required");
+  for (const [key, server] of Object.entries(root.servers ?? {})) {
+    if (typeof server?.name !== "string" || server.name === "") problems.push(`servers.${key}: name is required`);
+    if (typeof server?.url !== "string" || !/^https:\/\//.test(server.url)) problems.push(`servers.${key}: url must be an https URL`);
+    if (server?.auth !== "oauth" && server?.auth !== "api-key") problems.push(`servers.${key}: auth must be "oauth" or "api-key"`);
+  }
   if (!Array.isArray(root.clients) || root.clients.length === 0) return [...problems, "clients must be a non-empty array"];
 
   const seen = new Set<string>();
   for (const client of root.clients) {
     const at = `clients[${client?.slug ?? "?"}]`;
+    if (client?.server !== undefined && !(root.servers && client.server in root.servers)) {
+      problems.push(`${at}: unknown server "${client.server}"`);
+    } else if (client && (serverOf(root as McpClientsFile, client).auth === "api-key") !== (client.oauth === "none")) {
+      problems.push(`${at}: oauth must be "none" for an API-key server, and only for one`);
+    }
     if (typeof client?.slug !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(client.slug)) problems.push(`${at}: slug must be lower-case kebab`);
     else if (seen.has(client.slug)) problems.push(`${at}: duplicate slug`);
     else seen.add(client.slug);
@@ -128,9 +176,10 @@ function configFiles(install: McpClient["install"]): string | null {
 export function renderClient(file: McpClientsFile, client: McpClient): string {
   const install = client.install;
   const files = configFiles(install);
+  const server = serverOf(file, client);
   const out: string[] = [];
-  out.push(`${client.name}: connect the Jobo job search MCP server`, "");
-  out.push(`Server:     ${file.serverName} at ${file.serverUrl}`);
+  out.push(`${client.name}: connect the Jobo ${serverLabel(client)} MCP server`, "");
+  out.push(`Server:     ${server.name} at ${server.url}`);
   out.push(`Transport:  ${TRANSPORTS[client.transport] ?? client.transport}`);
   out.push(`Auth:       ${SIGN_IN[client.oauth] ?? client.oauth}`, "");
 
@@ -154,7 +203,7 @@ export function renderClient(file: McpClientsFile, client: McpClient): string {
     if (files) out.push("", `Config file: ${files}`);
   }
 
-  if (client.signIn) out.push(...paragraph("Sign in", client.signIn));
+  if (client.signIn) out.push(...paragraph(server.auth === "api-key" ? "API key" : "Sign in", client.signIn));
   if (client.verify) out.push(...paragraph("Check it worked", client.verify));
   if (client.notes?.length) {
     out.push("", "Notes:");
@@ -167,16 +216,26 @@ export function renderClient(file: McpClientsFile, client: McpClient): string {
 
 export function renderClientList(file: McpClientsFile): string {
   const out: string[] = [];
-  out.push(`The hosted Jobo job search MCP server: ${file.serverUrl}`);
-  out.push("Sign-in is OAuth with your Jobo account; no API key is involved.", "");
+  const used = new Set(file.clients.map((client) => client.server ?? JOB_SEARCH));
+  const listed = [...Object.keys(SERVERS), ...used].filter((key, index, all) => used.has(key) && all.indexOf(key) === index);
+  out.push(listed.length > 1 ? "The hosted Jobo MCP servers:" : "The hosted Jobo MCP server:", "");
+  for (const key of listed) {
+    const server = serverOf(file, { server: key });
+    out.push(wrap(`${server.url}: ${SERVERS[key]?.summary ?? key}`, WIDTH, "  "), "");
+  }
   const categories = [...new Set([...Object.keys(CATEGORIES), ...file.clients.map((client) => client.category)])];
   for (const category of categories) {
     const clients = file.clients.filter((client) => client.category === category);
     if (clients.length === 0) continue;
     out.push(`${CATEGORIES[category] ?? category}:`);
     const table = toTable(
-      clients.map((client) => ({ slug: client.slug, name: client.name, how: HOW[client.install.kind] ?? client.install.kind })),
-      [{ key: "slug" }, { key: "name" }, { key: "how", header: "set up by" }],
+      clients.map((client) => ({
+        slug: client.slug,
+        name: client.name,
+        server: serverLabel(client),
+        how: HOW[client.install.kind] ?? client.install.kind,
+      })),
+      [{ key: "slug" }, { key: "name" }, { key: "server" }, { key: "how", header: "set up by" }],
     );
     // Drop the header row: the category line is the heading.
     out.push(indent(table.trimEnd().split("\n").slice(1).join("\n")), "");
@@ -206,24 +265,27 @@ async function run(ctx: Ctx): Promise<number> {
   const client = findClient(file, query);
   if (!client) {
     const slugs = file.clients.map((entry) => entry.slug);
+    const developer = file.servers?.developer;
     throw new UsageError(
       `No MCP client called "${query}".${didYouMean(query, slugs)} Known clients: ${slugs.join(", ")}. ` +
-        `Any other client that supports Streamable HTTP takes the same URL: ${file.serverUrl}`,
+        `Any other client that supports Streamable HTTP takes the same URL: ${file.serverUrl} for job search (OAuth sign-in)` +
+        (developer ? `, or ${developer.url} for the developer server (send your API key as an Authorization: Bearer header).` : "."),
     );
   }
-  await ctx.io.stdout.write(
-    json ? toJson({ serverUrl: file.serverUrl, serverName: file.serverName, client }) : renderClient(file, client),
-  );
+  const server = serverOf(file, client);
+  await ctx.io.stdout.write(json ? toJson({ serverUrl: server.url, serverName: server.name, client }) : renderClient(file, client));
   return 0;
 }
 
 export const mcpCommand: CommandDef = {
   name: "mcp",
-  summary: "Show how to connect the hosted Jobo MCP server to an AI client",
+  summary: "Show how to connect a hosted Jobo MCP server to an AI client",
   usage: ["", "<client>"],
   description:
-    `Prints the steps to add the hosted Jobo job search MCP server (${MCP_CLIENTS.serverUrl}) to an AI client: the command to run, the config to paste or the settings to click through. ` +
-    "With no argument it lists the clients it knows. The server signs you in with your Jobo account through OAuth, so no API key is needed, and its searches bill like `jobo search`: per job returned.\n\n" +
+    "Prints the steps to add a hosted Jobo MCP server to an AI client: the command to run, the config to paste or the settings to click through. " +
+    "With no argument it lists the clients it knows and which server each is set up for.\n\n" +
+    `Coding agents and IDEs get the developer server (${serverOf(MCP_CLIENTS, { server: "developer" }).url}): it looks up company ids, occupations and filter values and builds a checked search request while you write code. It takes your Jobo API key as a header, and every tool on it is free.\n\n` +
+    `AI assistants get the job search server (${MCP_CLIENTS.serverUrl}): it signs you in with your Jobo account through OAuth, so no API key is needed, and its searches bill like \`jobo search\`: per job returned.\n\n` +
     "Print-only: this command never writes to another tool's configuration.",
   options: {
     json: { type: "boolean", description: "Print the client entry (or the whole list) as JSON." },

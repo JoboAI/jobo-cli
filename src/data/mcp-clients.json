@@ -7,30 +7,31 @@
       "name": "Claude Code",
       "vendor": "Anthropic",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://claude.com/product/claude-code",
       "docsUrl": "https://code.claude.com/docs/en/mcp",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "command",
-        "command": "claude mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "command": "claude mcp add --transport http jobo-developer https://dev-mcp.jobo.world/mcp --header \"Authorization: Bearer $JOBO_API_KEY\"",
         "path": "~/.claude.json",
         "projectPath": ".mcp.json",
         "language": "bash",
-        "snippet": "claude mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "snippet": "claude mcp add --transport http jobo-developer https://dev-mcp.jobo.world/mcp --header \"Authorization: Bearer $JOBO_API_KEY\"",
         "uiSteps": []
       },
-      "signIn": "Run claude mcp login jobo-job-search from a shell and complete the Jobo sign-in in the browser. The server connects and lists its tools without it, so Claude Code shows the server as connected either way. If you skip the sign-in, the first tool call fails with a message telling you to run /mcp, which starts the same sign-in from inside a session.",
-      "verify": "Run claude mcp list and check that jobo-job-search shows as connected, or open /mcp inside a session to see the server and its tools.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and export it as JOBO_API_KEY before you run the command: your shell fills it into the header, and Claude Code stores the header with the server. There is no sign-in, and three of the six tools work without a key.",
+      "verify": "Run claude mcp list and check that jobo-developer shows as connected, or open /mcp inside a session to see the server and its tools.",
       "notes": [
-        "The command adds the server for the current project only. Add --scope user to make it available in every project, or --scope project to write a shared .mcp.json.",
-        "Headless runs (claude -p) cannot complete a browser sign-in. Sign in once interactively first."
+        "The command adds the server for the current project only. Add --scope user to make it available in every project.",
+        "To share the server with a team, commit a .mcp.json entry with \"type\": \"http\", the URL and \"headers\": { \"Authorization\": \"Bearer ${JOBO_API_KEY}\" }. Claude Code expands the variable when it starts, so the key stays out of the file.",
+        "In PowerShell, write $env:JOBO_API_KEY in place of $JOBO_API_KEY."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://code.claude.com/docs/en/mcp",
-        "https://code.claude.com/docs/en/mcp.md",
-        "https://claude.com/docs/connectors/building/lazy-authentication"
+        "https://code.claude.com/docs/en/mcp.md"
       ]
     },
     {
@@ -38,30 +39,32 @@
       "name": "Codex",
       "vendor": "OpenAI",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://developers.openai.com/codex/cli",
       "docsUrl": "https://learn.chatgpt.com/docs/extend/mcp?surface=cli",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "command",
-        "command": "codex mcp add jobo-job-search --url https://jobs-mcp.jobo.world/mcp\ncodex mcp login jobo-job-search",
+        "command": "codex mcp add jobo-developer --url https://dev-mcp.jobo.world/mcp --bearer-token-env-var JOBO_API_KEY",
         "path": "~/.codex/config.toml",
         "projectPath": ".codex/config.toml",
         "language": "bash",
-        "snippet": "codex mcp add jobo-job-search --url https://jobs-mcp.jobo.world/mcp\ncodex mcp login jobo-job-search",
+        "snippet": "codex mcp add jobo-developer --url https://dev-mcp.jobo.world/mcp --bearer-token-env-var JOBO_API_KEY",
         "uiSteps": []
       },
-      "signIn": "Run codex mcp login jobo-job-search, which opens the browser for the Jobo sign-in. Add --no-browser to print the URL instead. The server lists its tools before you sign in, but calling one needs it.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in the JOBO_API_KEY environment variable. Codex stores the variable's name, not the key, and sends its value as the bearer token on every request. There is no sign-in, and three of the six tools work without a key.",
       "verify": "Run codex mcp list, or type /mcp in the Codex TUI to see the active MCP servers.",
       "notes": [
-        "codex mcp add does not sign you in; codex mcp login is a separate step.",
-        "The Codex CLI, IDE extension and desktop app share ~/.codex/config.toml, so one setup covers all three."
+        "There is no codex mcp login step for this server.",
+        "The Codex CLI, IDE extension and desktop app share ~/.codex/config.toml, so one setup covers all three. JOBO_API_KEY has to be set in the environment each of them starts from.",
+        "The same entry by hand, in ~/.codex/config.toml: a [mcp_servers.jobo-developer] table with url = \"https://dev-mcp.jobo.world/mcp\" and bearer_token_env_var = \"JOBO_API_KEY\"."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://learn.chatgpt.com/docs/extend/mcp?surface=cli",
         "https://learn.chatgpt.com/docs/developer-commands?surface=cli",
-        "https://www.conductor.build/docs/reference/mcp"
+        "https://learn.chatgpt.com/codex/config-file/config-reference"
       ]
     },
     {
@@ -69,26 +72,27 @@
       "name": "Qwen Code",
       "vendor": "Alibaba (Qwen)",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://github.com/QwenLM/qwen-code",
       "docsUrl": "https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "command",
-        "command": "qwen mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "command": "qwen mcp add --transport http jobo-developer https://dev-mcp.jobo.world/mcp --header \"Authorization: Bearer $JOBO_API_KEY\"",
         "path": "~/.qwen/settings.json",
         "projectPath": ".qwen/settings.json",
         "language": "bash",
-        "snippet": "qwen mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "snippet": "qwen mcp add --transport http jobo-developer https://dev-mcp.jobo.world/mcp --header \"Authorization: Bearer $JOBO_API_KEY\"",
         "uiSteps": []
       },
-      "signIn": "Start qwen and open /mcp, then select the server in the dialog to sign in: Qwen Code discovers the server's OAuth endpoints, registers itself and runs the browser sign-in. The server connects and lists its tools before you sign in, so do this before the first search.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and export it as JOBO_API_KEY before you run the command: your shell fills it into the header, and Qwen Code stores the header, key included, in its settings file. There is no sign-in, and three of the six tools work without a key.",
       "verify": "Run /mcp inside Qwen Code to see the server's status and tool list, or qwen mcp list from the shell.",
       "notes": [
-        "The command writes to ~/.qwen/settings.json. Add --scope project to write .qwen/settings.json instead.",
-        "The sign-in callback uses a local port and needs a browser on the same machine, so it does not work over plain SSH."
+        "The command writes to ~/.qwen/settings.json. With --scope project it writes .qwen/settings.json, which would then hold your key: do not commit it.",
+        "Qwen Code's documentation shows environment variables for a server's env block only, not for headers, which is why the key is stored."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/",
         "https://qwenlm.github.io/qwen-code-docs/en/developers/tools/mcp-server/"
@@ -99,27 +103,29 @@
       "name": "OpenCode",
       "vendor": "Anomaly (opencode.ai)",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://opencode.ai/",
       "docsUrl": "https://opencode.ai/docs/mcp-servers/",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "command",
-        "command": "opencode mcp add jobo-job-search --global --url https://jobs-mcp.jobo.world/mcp\nopencode mcp auth jobo-job-search",
+        "command": "opencode mcp add jobo-developer --global --url https://dev-mcp.jobo.world/mcp --header 'Authorization=Bearer {env:JOBO_API_KEY}'",
         "path": "~/.config/opencode/opencode.json",
         "projectPath": "opencode.json",
         "language": "bash",
-        "snippet": "opencode mcp add jobo-job-search --global --url https://jobs-mcp.jobo.world/mcp\nopencode mcp auth jobo-job-search",
+        "snippet": "opencode mcp add jobo-developer --global --url https://dev-mcp.jobo.world/mcp --header 'Authorization=Bearer {env:JOBO_API_KEY}'",
         "uiSteps": []
       },
-      "signIn": "Run opencode mcp auth jobo-job-search, which opens the browser. Inside OpenCode, /mcps lists the server and starts the same sign-in. The server connects and lists its tools before you sign in, so do this before the first search.",
-      "verify": "Run opencode mcp list and check that jobo-job-search shows as connected. It can show as connected before you have signed in, because the server lists its tools without it.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in the JOBO_API_KEY environment variable. The single quotes keep {env:JOBO_API_KEY} as written, so OpenCode stores the reference and reads the variable each time it starts: the key is never written to the config. There is no sign-in, and three of the six tools work without a key.",
+      "verify": "Run opencode mcp list and check that jobo-developer shows as connected.",
       "notes": [
         "Without --global the server is added to the current project's opencode.json.",
-        "Over SSH or in a container the browser callback page will not load. Copy that page's URL and paste it into the sign-in prompt.",
-        "These commands are from the current OpenCode documentation. On OpenCode V1, add the server to the config file by hand, then run opencode mcp auth."
+        "OpenCode treats a remote server as an OAuth server unless told otherwise. This one has none: if OpenCode tries to authenticate it, add \"oauth\": false to the server's entry in the config file.",
+        "If JOBO_API_KEY is unset, OpenCode sends an empty key and the lookups answer that the value is not a Jobo API key.",
+        "These commands are from the current OpenCode documentation. On OpenCode V1, add the server to the config file by hand."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://opencode.ai/docs/mcp-servers/",
         "https://opencode.ai/docs/config/",
@@ -131,26 +137,26 @@
       "name": "Goose",
       "vendor": "Block",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://goose-docs.ai/",
       "docsUrl": "https://goose-docs.ai/docs/getting-started/using-extensions",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "~/.config/goose/config.yaml",
         "projectPath": null,
         "language": "yaml",
-        "snippet": "extensions:\n  jobo-job-search:\n    name: jobo-job-search\n    type: streamable_http\n    uri: https://jobs-mcp.jobo.world/mcp\n    enabled: true\n    timeout: 300",
+        "snippet": "extensions:\n  jobo-developer:\n    name: jobo-developer\n    type: streamable_http\n    uri: https://dev-mcp.jobo.world/mcp\n    headers:\n      Authorization: Bearer <your Jobo API key>\n    enabled: true\n    timeout: 300",
         "uiSteps": []
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Goose then registers itself with the server and opens an OAuth window in your browser. Approve access there.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key>. Goose's documentation shows no way to read a header from an environment variable, so the key sits in the config file: keep that file out of version control. There is no sign-in, and three of the six tools work without a key.",
       "verify": "Check that the extension is listed and enabled under goose configure → Toggle Extensions, or in the Extensions list in goose Desktop.",
       "notes": [
-        "The endpoint key is uri, not url, and the type is streamable_http.",
-        "Prefer a wizard? Run goose configure, select Add Extension, choose Remote Extension (Streamable HTTP) and enter the same URL."
+        "The endpoint key is uri, not url, and the type is streamable_http."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://goose-docs.ai/docs/getting-started/using-extensions",
         "https://goose-docs.ai/docs/guides/config-files",
@@ -162,26 +168,28 @@
       "name": "Amp",
       "vendor": "Amp (formerly Sourcegraph)",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://ampcode.com/",
       "docsUrl": "https://ampcode.com/docs/customize/mcp",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
-        "kind": "command",
-        "command": "amp mcp add jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "kind": "config-file",
+        "command": null,
         "path": "~/.config/amp/settings.json",
         "projectPath": ".amp/settings.json",
-        "language": "bash",
-        "snippet": "amp mcp add jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "language": "json",
+        "snippet": "{\n  \"amp.mcpServers\": {\n    \"jobo-developer\": {\n      \"url\": \"https://dev-mcp.jobo.world/mcp\",\n      \"headers\": {\n        \"Authorization\": \"Bearer ${JOBO_API_KEY}\"\n      }\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Amp then opens the Jobo sign-in page in your browser; approve access there.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in the JOBO_API_KEY environment variable. Amp expands ${JOBO_API_KEY} in the header when it starts, so the key stays out of the file. There is no sign-in, and three of the six tools work without a key.",
       "verify": "Run amp mcp doctor to see the server's status.",
       "notes": [
-        "A server added to workspace settings (.amp/settings.json) must be approved before it runs: amp mcp approve jobo-job-search.",
-        "To sign in again, run amp mcp oauth logout jobo-job-search and restart Amp."
+        "In an existing settings.json, add only the jobo-developer entry under amp.mcpServers.",
+        "amp mcp add has no option for headers, which is why this is a file edit.",
+        "A server added to workspace settings (.amp/settings.json) must be approved before it runs: amp mcp approve jobo-developer."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://ampcode.com/docs/customize/mcp",
         "https://ampcode.com/manual"
@@ -192,29 +200,31 @@
       "name": "Warp",
       "vendor": "Warp",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://www.warp.dev/",
       "docsUrl": "https://docs.warp.dev/agents/capabilities/mcp/",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "ui",
         "command": null,
         "path": null,
         "projectPath": null,
         "language": "json",
-        "snippet": "{\n  \"jobo-job-search\": {\n    \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n  }\n}",
+        "snippet": "{\n  \"jobo-developer\": {\n    \"url\": \"https://dev-mcp.jobo.world/mcp\",\n    \"headers\": {\n      \"Authorization\": \"Bearer <your Jobo API key>\"\n    }\n  }\n}",
         "uiSteps": [
           "Open Settings → Agents → MCP servers and click + Add.",
           "Paste the JSON below and save.",
           "Start the server from the MCP servers page if it is not already running."
         ]
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time an agent calls a tool. Warp then opens the Jobo sign-in in your browser. After you approve, Warp stores the credentials on your device and reuses them.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key>. Warp's documentation shows no way to read a header from an environment variable, so the key is part of what you paste. There is no sign-in, and three of the six tools work without a key.",
       "verify": "On the MCP servers page the server shows as running, with its list of tools. Use View Logs on the server's row if it fails.",
       "notes": [
-        "This applies to agents running locally in the Warp app. Warp's cloud agents cannot complete an interactive sign-in."
+        "This applies to agents running locally in the Warp app.",
+        "Warp can share an MCP server with your team. A shared copy of this one would carry your key in its headers: do not share it."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://docs.warp.dev/agents/capabilities/mcp/",
         "https://docs.warp.dev/agents/capabilities/mcp.md",
@@ -226,26 +236,27 @@
       "name": "Gemini CLI",
       "vendor": "Google",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://geminicli.com/",
       "docsUrl": "https://geminicli.com/docs/tools/mcp-server/",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "command",
-        "command": "gemini mcp add --transport http --scope user jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "command": "gemini mcp add --transport http --scope user --header \"Authorization: Bearer $JOBO_API_KEY\" jobo-developer https://dev-mcp.jobo.world/mcp",
         "path": "~/.gemini/settings.json",
         "projectPath": ".gemini/settings.json",
         "language": "bash",
-        "snippet": "gemini mcp add --transport http --scope user jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "snippet": "gemini mcp add --transport http --scope user --header \"Authorization: Bearer $JOBO_API_KEY\" jobo-developer https://dev-mcp.jobo.world/mcp",
         "uiSteps": []
       },
-      "signIn": "Inside Gemini CLI, run /mcp auth jobo-job-search, which opens a browser for the Jobo sign-in. The server connects and lists its tools before you sign in, so do this before the first search.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and export it as JOBO_API_KEY before you run the command: your shell fills it into the header, and Gemini CLI stores the header, key included, in its settings file. There is no sign-in, and three of the six tools work without a key.",
       "verify": "Run /mcp in the CLI to see the server as connected with its tools, or gemini mcp list from the shell.",
       "notes": [
-        "--scope user writes ~/.gemini/settings.json. Without it the server is added to the current project only.",
-        "The sign-in needs a local browser, so it fails over SSH and in containers without one."
+        "--scope user writes ~/.gemini/settings.json. Without it the server is added to the current project's .gemini/settings.json, which would then hold your key: do not commit it.",
+        "Gemini CLI's documentation shows environment variables for a server's env block only, not for headers, which is why the key is stored."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://geminicli.com/docs/tools/mcp-server/"
       ]
@@ -255,27 +266,27 @@
       "name": "Augment",
       "vendor": "Augment Code",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://www.augmentcode.com/product/cli",
       "docsUrl": "https://docs.augmentcode.com/cli/integrations",
       "transport": "stdio-bridge",
-      "oauth": "bridge",
+      "oauth": "none",
       "install": {
         "kind": "command",
-        "command": "auggie mcp add jobo-job-search --command npx --args \"-y mcp-remote https://jobs-mcp.jobo.world/mcp\"",
+        "command": "export AUTH_HEADER=\"Bearer $JOBO_API_KEY\"\nauggie mcp add jobo-developer --command npx --args '-y mcp-remote https://dev-mcp.jobo.world/mcp --header Authorization:${AUTH_HEADER}'",
         "path": "~/.augment/settings.json",
         "projectPath": ".augment/settings.json",
         "language": "bash",
-        "snippet": "auggie mcp add jobo-job-search --command npx --args \"-y mcp-remote https://jobs-mcp.jobo.world/mcp\"",
+        "snippet": "export AUTH_HEADER=\"Bearer $JOBO_API_KEY\"\nauggie mcp add jobo-developer --command npx --args '-y mcp-remote https://dev-mcp.jobo.world/mcp --header Authorization:${AUTH_HEADER}'",
         "uiSteps": []
       },
-      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and export it as JOBO_API_KEY. The first line builds the header value in AUTH_HEADER; the single quotes on the second keep ${AUTH_HEADER} as written, so the mcp-remote bridge reads it from the environment each time it starts. Put the export in your shell profile, so it is set whenever Auggie runs. No browser sign-in opens, and three of the six tools work without a key.",
       "verify": "Run /mcp inside an Auggie session to see the status of configured servers, or auggie mcp list from the shell.",
       "notes": [
         "The command saves to ~/.augment/settings.json. Pass --project to write .augment/settings.json instead.",
-        "Auggie can also add the URL directly (--transport http --url), but its MCP documentation does not describe the OAuth sign-in for remote servers, so this guide uses the bridge.",
-        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
+        "The header is written with no space after the colon, and its value lives in the environment, because spaces inside args are not always escaped."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://docs.augmentcode.com/cli/integrations",
         "https://docs.augmentcode.com/cli/reference",
@@ -292,32 +303,32 @@
       "name": "Conductor",
       "vendor": "Conductor (conductor.build)",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://www.conductor.build/",
       "docsUrl": "https://www.conductor.build/docs/reference/mcp",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "command",
-        "command": "claude mcp add --transport http -s user jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "command": "claude mcp add --transport http -s user jobo-developer https://dev-mcp.jobo.world/mcp --header \"Authorization: Bearer $JOBO_API_KEY\"",
         "path": "~/.claude.json",
         "projectPath": ".mcp.json",
         "language": "bash",
-        "snippet": "claude mcp add --transport http -s user jobo-job-search https://jobs-mcp.jobo.world/mcp",
+        "snippet": "claude mcp add --transport http -s user jobo-developer https://dev-mcp.jobo.world/mcp --header \"Authorization: Bearer $JOBO_API_KEY\"",
         "uiSteps": []
       },
-      "signIn": "Run claude mcp login jobo-job-search in a terminal and complete the Jobo sign-in in the browser. Conductor's MCP status dialog (the plug icon in the composer, or /mcp-status) offers the same sign-in on the server's row when the server needs it. The server connects and lists its tools before you sign in, so it can show as connected before you have.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and export it as JOBO_API_KEY before you run the command: your shell fills it into the header, and Claude Code stores the header with the server. There is no sign-in, and three of the six tools work without a key.",
       "verify": "Click the plug icon in the composer, or run /mcp-status, and refresh the status.",
       "notes": [
         "Conductor has no MCP configuration of its own. Claude Code sessions use Claude Code's servers and Codex sessions use Codex's, so for Codex sessions follow the Codex setup instead.",
         "A session started before the server was added does not see it. Refresh the MCP status and start a new session.",
         "Enterprise data privacy mode in Conductor disables custom MCP servers."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://www.conductor.build/docs/reference/mcp",
         "https://www.conductor.build/docs/guides/configure-mcp-servers",
-        "https://code.claude.com/docs/en/mcp",
-        "https://claude.com/docs/connectors/building/lazy-authentication"
+        "https://code.claude.com/docs/en/mcp"
       ]
     },
     {
@@ -325,26 +336,28 @@
       "name": "Cline",
       "vendor": "Cline Bot Inc.",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://cline.bot/",
       "docsUrl": "https://docs.cline.bot/mcp/mcp-overview",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "~/.cline/data/settings/cline_mcp_settings.json",
         "projectPath": null,
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"type\": \"streamableHttp\",\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\",\n      \"disabled\": false,\n      \"autoApprove\": []\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"type\": \"streamableHttp\",\n      \"url\": \"https://dev-mcp.jobo.world/mcp\",\n      \"headers\": {\n        \"Authorization\": \"Bearer <your Jobo API key>\"\n      },\n      \"disabled\": false,\n      \"autoApprove\": []\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "Cline runs a browser authorization for the server when it asks for sign-in, which is the first time a tool is called. In the Cline CLI you can start or repeat it yourself: run cline mcp and choose Authorize OAuth, then approve access in the browser.",
-      "verify": "Open MCP Servers in Cline and confirm jobo-job-search is enabled and its tools are listed.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key>. Cline's documentation shows no way to read a header from an environment variable, so the key sits in this settings file. There is no sign-in, and three of the six tools work without a key.",
+      "verify": "Open MCP Servers in Cline and confirm jobo-developer is enabled and its tools are listed.",
       "notes": [
         "Keep \"type\": \"streamableHttp\". Without it Cline falls back to the legacy SSE transport, which this server does not offer.",
-        "The file above is the Cline CLI's. In the IDE extension, open MCP Servers → Remote Servers and enter the same name and URL with the Streamable HTTP transport."
+        "From the Cline CLI the same entry is one command: cline mcp add jobo-developer https://dev-mcp.jobo.world/mcp --transport http --header \"Authorization: Bearer $JOBO_API_KEY\".",
+        "In the IDE extension, open MCP Servers, choose Configure MCP Servers and paste the entry into the file it opens. The Remote Servers form has no field for headers."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://docs.cline.bot/mcp/mcp-overview",
         "https://docs.cline.bot/mcp/connecting-to-a-remote-server",
@@ -358,27 +371,27 @@
       "name": "Roo Code",
       "vendor": "Roo Code, Inc.",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://github.com/RooCodeInc/Roo-Code",
       "docsUrl": "https://roocodeinc.github.io/Roo-Code/features/mcp/using-mcp-in-roo",
       "transport": "stdio-bridge",
-      "oauth": "bridge",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "mcp_settings.json",
         "projectPath": ".roo/mcp.json",
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://dev-mcp.jobo.world/mcp\",\n        \"--header\",\n        \"Authorization:${AUTH_HEADER}\"\n      ],\n      \"env\": {\n        \"AUTH_HEADER\": \"Bearer <your Jobo API key>\"\n      }\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
-      "verify": "Open the MCP view in Roo Code and confirm jobo-job-search is listed, enabled, and shows its tools.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key> in the env block. The bridge sends it as the Authorization header on every request, and no browser sign-in opens. The header is written with no space after the colon and its value lives in env, because some clients do not escape spaces in args. Three of the six tools work without a key.",
+      "verify": "Open the MCP view in Roo Code and confirm jobo-developer is listed, enabled, and shows its tools.",
       "notes": [
         "Open the global file from Roo Code's MCP view with Edit Global MCP. Edit Project MCP opens .roo/mcp.json.",
-        "On Windows, launch through cmd: set command to cmd and put /c, npx, -y, mcp-remote and the URL in args.",
-        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
+        "On Windows, launch through cmd: set command to cmd and put /c, npx, -y, mcp-remote and the URL in args."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://roocodeinc.github.io/Roo-Code/features/mcp/using-mcp-in-roo",
         "https://github.com/RooCodeInc/Roo-Code/blob/main/CHANGELOG.md",
@@ -391,26 +404,32 @@
       "name": "Amazon Q Developer",
       "vendor": "Amazon Web Services",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://aws.amazon.com/q/developer/",
       "docsUrl": "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
-        "kind": "config-file",
+        "kind": "ui",
         "command": null,
-        "path": "~/.aws/amazonq/mcp.json",
-        "projectPath": ".amazonq/mcp.json",
+        "path": null,
+        "projectPath": null,
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"type\": \"http\",\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
-        "uiSteps": []
+        "snippet": "",
+        "uiSteps": [
+          "In your IDE, open the Amazon Q chat panel, choose the tools icon, then +.",
+          "Select http as the transport, then enter the name jobo-developer and the URL https://dev-mcp.jobo.world/mcp.",
+          "Under Headers - optional, add a header named Authorization whose value is the word Bearer, a space, and your Jobo API key.",
+          "Save the server."
+        ]
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. In the CLI, once Amazon Q reports that the server requires authentication, run /mcp, open the URL it prints and sign in while the session stays open. In the IDE, Amazon Q opens the browser authorization when the server asks for it.",
-      "verify": "In the CLI, run /tools and confirm the jobo-job-search tools are listed. In the IDE, the server appears in the MCP servers panel with its tools.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and use it in the Authorization header you add under Headers - optional. Amazon Q opens no browser authorization for this server. Three of the six tools work without a key.",
+      "verify": "The server appears in the MCP servers panel with its tools.",
       "notes": [
-        "In the IDE, open the Amazon Q chat panel, choose the tools icon, then +, select http as the transport and enter the same name and URL.",
+        "This is the IDE setup. The documentation for the Amazon Q CLI's mcp.json shows no headers field for an HTTP server, so the CLI is not covered here.",
         "Organisations on the Pro tier can turn MCP off or restrict it to an allow-list, in which case a server you add will not load."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html",
         "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/mcp-ide.html",
@@ -427,28 +446,28 @@
       "name": "Zencoder",
       "vendor": "Zencoder",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://zencoder.ai/",
       "docsUrl": "https://docs.zencoder.ai/features/mcp-deep-dive",
       "transport": "stdio-bridge",
-      "oauth": "bridge",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": null,
         "projectPath": ".vscode/settings.json",
         "language": "json",
-        "snippet": "{\n  \"zencoder.mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "snippet": "{\n  \"zencoder.mcpServers\": {\n    \"jobo-developer\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://dev-mcp.jobo.world/mcp\",\n        \"--header\",\n        \"Authorization:${AUTH_HEADER}\"\n      ],\n      \"env\": {\n        \"AUTH_HEADER\": \"Bearer <your Jobo API key>\"\n      }\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
-      "verify": "Open Agent Tools in Zencoder and confirm jobo-job-search and its tools appear.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key> in the env block. The bridge sends it as the Authorization header on every request, and no browser sign-in opens. The header is written with no space after the colon and its value lives in env, because some clients do not escape spaces in args. Three of the six tools work without a key.",
+      "verify": "Open Agent Tools in Zencoder and confirm jobo-developer and its tools appear.",
       "notes": [
         "In an existing settings.json, add only the zencoder.mcpServers key.",
-        "In JetBrains IDEs, paste only the inner object (the jobo-job-search entry) under Settings → Tools → Zencoder → MCP Servers.",
-        "Restart the IDE after adding the server.",
-        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
+        "In JetBrains IDEs, paste only the inner object (the jobo-developer entry) under Settings → Tools → Zencoder → MCP Servers.",
+        "Restart the IDE after adding the server."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://docs.zencoder.ai/features/mcp-deep-dive",
         "https://docs.zencoder.ai/changelog/home",
@@ -461,31 +480,31 @@
       "name": "JetBrains AI Assistant",
       "vendor": "JetBrains",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://www.jetbrains.com/ai-ides/",
       "docsUrl": "https://www.jetbrains.com/help/ai-assistant/mcp.html",
       "transport": "stdio-bridge",
-      "oauth": "bridge",
+      "oauth": "none",
       "install": {
         "kind": "ui",
         "command": null,
         "path": null,
         "projectPath": null,
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://dev-mcp.jobo.world/mcp\",\n        \"--header\",\n        \"Authorization:${AUTH_HEADER}\"\n      ],\n      \"env\": {\n        \"AUTH_HEADER\": \"Bearer <your Jobo API key>\"\n      }\n    }\n  }\n}",
         "uiSteps": [
           "Open Settings → Tools → AI Assistant → Model Context Protocol (MCP) and click Add.",
           "Choose the STDIO connection and paste the JSON below.",
           "Set the server level to global or the current project, click OK, then Apply."
         ]
       },
-      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key> in the env block. The bridge sends it as the Authorization header on every request, and no browser sign-in opens. The header is written with no space after the colon and its value lives in env, because some clients do not escape spaces in args. Three of the six tools work without a key.",
       "verify": "In the MCP settings table, check the Status column, and click the status icon to review the tools the server provides.",
       "notes": [
         "npx must be on the PATH the IDE sees.",
-        "Organisations that manage AI centrally through JetBrains can block user-added MCP servers.",
-        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
+        "Organisations that manage AI centrally through JetBrains can block user-added MCP servers."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://www.jetbrains.com/help/ai-assistant/mcp.html",
         "https://github.com/geelen/mcp-remote"
@@ -496,27 +515,27 @@
       "name": "Rovo Dev CLI",
       "vendor": "Atlassian",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://www.atlassian.com/software/rovo-dev",
       "docsUrl": "https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/",
       "transport": "stdio-bridge",
-      "oauth": "bridge",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "~/.rovodev/mcp.json",
         "projectPath": null,
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ],\n      \"transport\": \"stdio\"\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://dev-mcp.jobo.world/mcp\",\n        \"--header\",\n        \"Authorization:${AUTH_HEADER}\"\n      ],\n      \"env\": {\n        \"AUTH_HEADER\": \"Bearer <your Jobo API key>\"\n      },\n      \"transport\": \"stdio\"\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
-      "verify": "Run acli rovodev run, then /mcp, and confirm jobo-job-search is listed as enabled with its tools.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key> in the env block. The bridge sends it as the Authorization header on every request, and no browser sign-in opens. The header is written with no space after the colon and its value lives in env, because some clients do not escape spaces in args. Three of the six tools work without a key.",
+      "verify": "Run acli rovodev run, then /mcp, and confirm jobo-developer is listed as enabled with its tools.",
       "notes": [
         "acli rovodev mcp opens the file in your editor.",
-        "Rovo Dev CLI uses a transport key where most clients use type.",
-        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
+        "Rovo Dev CLI uses a transport key where most clients use type."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/",
         "https://support.atlassian.com/rovo/docs/rovo-dev-and-model-context-protocol-mcp/",
@@ -529,26 +548,28 @@
       "name": "Crush",
       "vendor": "Charmbracelet",
       "category": "coding-agent",
+      "server": "developer",
       "productUrl": "https://charm.land/crush/",
       "docsUrl": "https://github.com/charmbracelet/crush/blob/main/README.md#mcps",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "~/.config/crush/crushrc",
         "projectPath": "./.crushrc",
         "language": "bash",
-        "snippet": "mcp add jobo-job-search --type http --url \"https://jobs-mcp.jobo.world/mcp\" --oauth true --sessionless true",
+        "snippet": "mcp add jobo-developer --type http --url \"https://dev-mcp.jobo.world/mcp\" --header Authorization \"Bearer $JOBO_API_KEY\" --sessionless true",
         "uiSteps": []
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. With --oauth true, Crush then registers itself with the server and runs the authorization flow. Complete the Jobo sign-in in the browser.",
-      "verify": "Start crush and confirm jobo-job-search appears as connected. crush logs shows connection errors if it does not.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in the JOBO_API_KEY environment variable. crushrc is a shell file, so Crush expands $JOBO_API_KEY when it starts and the key stays out of the file. There is no sign-in, and three of the six tools work without a key.",
+      "verify": "Start crush and confirm jobo-developer appears as connected. crush logs shows connection errors if it does not.",
       "notes": [
         "crushrc is a shell-style file, not JSON. Add the line as it is.",
-        "--sessionless true tells Crush the server does not issue session IDs, which this one does not."
+        "--sessionless true tells Crush the server does not issue session IDs, which this one does not.",
+        "Leave --oauth out: it is Crush's alternative to a static Authorization header."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://github.com/charmbracelet/crush/blob/main/README.md",
         "https://github.com/charmbracelet/crush/blob/main/docs/config/README.md"
@@ -559,26 +580,27 @@
       "name": "Cursor",
       "vendor": "Anysphere",
       "category": "ide",
+      "server": "developer",
       "productUrl": "https://cursor.com/",
       "docsUrl": "https://cursor.com/docs/context/mcp",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "~/.cursor/mcp.json",
         "projectPath": ".cursor/mcp.json",
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"url\": \"https://dev-mcp.jobo.world/mcp\",\n      \"headers\": {\n        \"Authorization\": \"Bearer ${env:JOBO_API_KEY}\"\n      }\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Cursor then opens the Jobo sign-in page in your browser. Sign in, approve access and return to Cursor.",
-      "verify": "Open Customize in the Cursor sidebar and check that jobo-job-search is listed and switched on. If it is not, open the Output panel and pick MCP Logs.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in the JOBO_API_KEY environment variable. Set it in your shell profile or the system environment and restart Cursor: it resolves ${env:JOBO_API_KEY} when it loads the config, so the key stays out of the file. There is no sign-in, and three of the six tools work without a key.",
+      "verify": "Open Customize in the Cursor sidebar and check that jobo-developer is listed and switched on. If it is not, open the Output panel and pick MCP Logs.",
       "notes": [
-        "A remote entry needs only url. No type field is required.",
+        "A remote entry needs only url and headers. No type field is required.",
         "Enterprise admins can restrict which MCP servers run, in which case a server you add may be blocked."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://cursor.com/docs/context/mcp",
         "https://cursor.com/docs/context/mcp/install-links"
@@ -589,27 +611,27 @@
       "name": "VS Code",
       "vendor": "Microsoft",
       "category": "ide",
+      "server": "developer",
       "productUrl": "https://code.visualstudio.com/",
       "docsUrl": "https://code.visualstudio.com/docs/agent-customization/mcp-servers",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "~/.copilot/mcp-config.json",
         "projectPath": ".mcp.json",
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"type\": \"http\",\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\",\n      \"tools\": [\n        \"*\"\n      ]\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"type\": \"http\",\n      \"url\": \"https://dev-mcp.jobo.world/mcp\",\n      \"headers\": {\n        \"Authorization\": \"Bearer ${JOBO_API_KEY}\"\n      },\n      \"tools\": [\n        \"*\"\n      ]\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Complete the sign-in when VS Code prompts for it, or choose Authenticate in the server's actions when it is offered, then finish the Jobo sign-in in the browser.",
-      "verify": "Ask Copilot a question that needs job data and expand the tool call in the conversation to confirm it came from jobo-job-search.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in the JOBO_API_KEY environment variable. Set it in the environment VS Code starts from. VS Code expands ${JOBO_API_KEY} in the header, so the key stays out of the file. Keep the braces: a bare $JOBO_API_KEY is sent as text. There is no sign-in, and three of the six tools work without a key.",
+      "verify": "Ask Copilot which filters the Jobo job search takes and expand the tool call in the conversation to confirm it came from jobo-developer.",
       "notes": [
-        "Prefer the guided flow? With Copilot selected in the Chat view, run Chat: Open Customizations, select MCP Servers, then Add Server. Choose HTTP, enter the URL and the server ID jobo-job-search, and select Global, then Copilot Global.",
         "The older .vscode/mcp.json format, with a top-level servers key, belongs to VS Code's Local harness. The documentation marks it as deprecated and due for removal in February 2027.",
         "An organisation policy can restrict MCP servers to an allow-list."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://code.visualstudio.com/docs/agent-customization/mcp-servers",
         "https://code.visualstudio.com/docs/agents/reference/mcp-configuration",
@@ -623,6 +645,7 @@
       "name": "Visual Studio",
       "vendor": "Microsoft",
       "category": "ide",
+      "server": "job-search",
       "productUrl": "https://visualstudio.microsoft.com/",
       "docsUrl": "https://learn.microsoft.com/en-us/visualstudio/ide/mcp-servers?view=visualstudio",
       "transport": "http",
@@ -653,26 +676,27 @@
       "name": "Windsurf",
       "vendor": "Cognition",
       "category": "ide",
+      "server": "developer",
       "productUrl": "https://devin.ai/desktop",
       "docsUrl": "https://docs.devin.ai/desktop/devin-local/customizations",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "~/.config/devin/mcp_config.json",
-        "projectPath": ".devin/mcp_config.json",
+        "projectPath": ".devin/mcp_config.local.json",
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\",\n      \"transport\": \"http\"\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"url\": \"https://dev-mcp.jobo.world/mcp\",\n      \"transport\": \"http\",\n      \"headers\": {\n        \"Authorization\": \"Bearer <your Jobo API key>\"\n      }\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. The server then appears under Customize → MCPs with a Needs authentication state: click Authenticate and complete the Jobo sign-in in the browser.",
-      "verify": "Customize → MCPs lists jobo-job-search as enabled, without the Needs authentication state.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key>. The key sits in the file, so use the user-level file, or .devin/mcp_config.local.json in a project, which stays out of version control. Never put it in the shared .devin/mcp_config.json. There is no sign-in, and three of the six tools work without a key.",
+      "verify": "Customize → MCPs lists jobo-developer as enabled.",
       "notes": [
         "Windsurf has been renamed Devin Desktop. The file above is the location its current documentation gives.",
-        "From the Devin CLI: devin mcp add jobo-job-search https://jobs-mcp.jobo.world/mcp -s user, then devin mcp login jobo-job-search."
+        "From the Devin CLI, devin mcp add jobo-developer https://dev-mcp.jobo.world/mcp -s user adds the server. The command has no option for headers, so add the headers block to the file afterwards."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://docs.devin.ai/desktop/devin-local/customizations",
         "https://docs.devin.ai/cli/extensibility/mcp/configuration",
@@ -685,26 +709,27 @@
       "name": "Kiro",
       "vendor": "Amazon Web Services",
       "category": "ide",
+      "server": "developer",
       "productUrl": "https://kiro.dev/",
       "docsUrl": "https://kiro.dev/docs/mcp/configuration/",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "~/.kiro/settings/mcp.json",
         "projectPath": ".kiro/settings/mcp.json",
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"url\": \"https://dev-mcp.jobo.world/mcp\",\n      \"headers\": {\n        \"Authorization\": \"Bearer ${JOBO_API_KEY}\"\n      }\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Kiro then runs the browser sign-in: it registers itself and opens the Jobo authorization page. If a token later expires, use the Re-authenticate button in the MCP panel.",
-      "verify": "Check the MCP servers tab in the Kiro panel to confirm jobo-job-search is connected.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in the JOBO_API_KEY environment variable. Set it in the environment Kiro starts from, and add JOBO_API_KEY to the Mcp Approved Env Vars setting: Kiro only expands the variables on that list and warns about any other. There is no sign-in, and three of the six tools work without a key.",
+      "verify": "Check the MCP servers tab in the Kiro panel to confirm jobo-developer is connected.",
       "notes": [
         "MCP support must be switched on: open Settings, search for MCP and enable it.",
         "Open the file from the Command Palette with Kiro: Open user MCP config (JSON)."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://kiro.dev/docs/mcp/configuration/",
         "https://kiro.dev/docs/mcp/"
@@ -715,27 +740,27 @@
       "name": "Zed",
       "vendor": "Zed Industries",
       "category": "ide",
+      "server": "developer",
       "productUrl": "https://zed.dev/",
       "docsUrl": "https://zed.dev/docs/ai/mcp",
       "transport": "http",
-      "oauth": "native",
+      "oauth": "none",
       "install": {
         "kind": "config-file",
         "command": null,
         "path": "Zed's settings.json",
         "projectPath": null,
         "language": "json",
-        "snippet": "{\n  \"context_servers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
+        "snippet": "{\n  \"context_servers\": {\n    \"jobo-developer\": {\n      \"url\": \"https://dev-mcp.jobo.world/mcp\",\n      \"headers\": {\n        \"Authorization\": \"Bearer <your Jobo API key>\"\n      }\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Because the entry has no Authorization header, Zed then prompts you to authenticate. Follow the prompt and finish the Jobo sign-in in the browser.",
-      "verify": "Open Settings → AI → MCP Servers. The indicator next to jobo-job-search is green when the server is active.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key>. With an Authorization header on the entry, Zed connects without prompting you to authenticate. Zed's documentation shows no way to read the header from an environment variable, so the key sits in your settings file. There is no sign-in, and three of the six tools work without a key.",
+      "verify": "Open Settings → AI → MCP Servers. The indicator next to jobo-developer is green when the server is active.",
       "notes": [
         "Open the file with the zed: open settings file action.",
-        "The key is context_servers, not mcpServers. Merge the entry into your existing settings rather than replacing the file.",
-        "Or use the UI: Settings → AI → MCP Servers → Add Server → Add Remote Server."
+        "The key is context_servers, not mcpServers. Merge the entry into your existing settings rather than replacing the file."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://zed.dev/docs/ai/mcp",
         "https://zed.dev/docs/reference/all-settings"
@@ -746,32 +771,32 @@
       "name": "JetBrains IDEs",
       "vendor": "JetBrains",
       "category": "ide",
+      "server": "developer",
       "productUrl": "https://www.jetbrains.com/ai/",
       "docsUrl": "https://www.jetbrains.com/help/ai-assistant/mcp.html",
       "transport": "stdio-bridge",
-      "oauth": "bridge",
+      "oauth": "none",
       "install": {
         "kind": "ui",
         "command": null,
         "path": null,
         "projectPath": null,
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://dev-mcp.jobo.world/mcp\",\n        \"--header\",\n        \"Authorization:${AUTH_HEADER}\"\n      ],\n      \"env\": {\n        \"AUTH_HEADER\": \"Bearer <your Jobo API key>\"\n      }\n    }\n  }\n}",
         "uiSteps": [
           "Open Settings → Tools → AI Assistant → Model Context Protocol (MCP) and click Add.",
           "Choose the STDIO connection and paste the JSON below.",
           "Set the server level to global or the current project, click OK, then Apply."
         ]
       },
-      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key> in the env block. The bridge sends it as the Authorization header on every request, and no browser sign-in opens. The header is written with no space after the colon and its value lives in env, because some clients do not escape spaces in args. Three of the six tools work without a key.",
       "verify": "On the same settings page, the Status column shows the connection state. Click its icon to review the list of tools.",
       "notes": [
         "Junie has its own MCP settings, under Settings → Tools → Junie → MCP Settings, and takes the same mcpServers entry.",
         "This is the IDE as an MCP client. The separate Enable MCP Server setting exposes the IDE's own tools to other clients and is unrelated.",
-        "npx must be on the PATH of the IDE process.",
-        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
+        "npx must be on the PATH of the IDE process."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://www.jetbrains.com/help/ai-assistant/mcp.html",
         "https://junie.jetbrains.com/docs/junie-ide-plugin.html",
@@ -785,31 +810,31 @@
       "name": "Trae",
       "vendor": "ByteDance",
       "category": "ide",
+      "server": "developer",
       "productUrl": "https://www.trae.ai/",
       "docsUrl": "https://docs.trae.ai/ide/add-mcp-servers",
       "transport": "stdio-bridge",
-      "oauth": "bridge",
+      "oauth": "none",
       "install": {
         "kind": "ui",
         "command": null,
         "path": null,
         "projectPath": ".trae/mcp.json",
         "language": "json",
-        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
+        "snippet": "{\n  \"mcpServers\": {\n    \"jobo-developer\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://dev-mcp.jobo.world/mcp\",\n        \"--header\",\n        \"Authorization:${AUTH_HEADER}\"\n      ],\n      \"env\": {\n        \"AUTH_HEADER\": \"Bearer <your Jobo API key>\"\n      }\n    }\n  }\n}",
         "uiSteps": [
           "Open Settings → MCP.",
           "Click Add, then Create Manually.",
           "Paste the JSON below and click Confirm."
         ]
       },
-      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
+      "signIn": "Create an API key at https://enterprise.jobo.world/api-keys and put it in place of <your Jobo API key> in the env block. The bridge sends it as the Authorization header on every request, and no browser sign-in opens. The header is written with no space after the colon and its value lives in env, because some clients do not escape spaces in args. Three of the six tools work without a key.",
       "verify": "The server appears in the MCP server list under Settings → MCP, and its tools can be selected for an agent.",
       "notes": [
         "For a project-level server, turn on Project MCP under Settings → MCP and put the same JSON in .trae/mcp.json.",
-        "Trae passes at most 40 MCP tools to the model across all servers. Jobo's server has seven.",
-        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
+        "Trae passes at most 40 MCP tools to the model across all servers. This server has six."
       ],
-      "verified": "2026-11-20",
+      "verified": "2026-11-22",
       "sources": [
         "https://docs.trae.ai/ide/model-context-protocol",
         "https://docs.trae.ai/ide/add-mcp-servers",
@@ -824,6 +849,7 @@
       "name": "ChatGPT",
       "vendor": "OpenAI",
       "category": "llm",
+      "server": "job-search",
       "productUrl": "https://chatgpt.com/",
       "docsUrl": "https://developers.openai.com/api/docs/guides/custom-mcp-server",
       "transport": "http",
@@ -862,6 +888,7 @@
       "name": "Claude",
       "vendor": "Anthropic",
       "category": "llm",
+      "server": "job-search",
       "productUrl": "https://claude.ai/",
       "docsUrl": "https://claude.com/docs/connectors/custom/remote-mcp",
       "transport": "http",
@@ -900,6 +927,7 @@
       "name": "Perplexity",
       "vendor": "Perplexity",
       "category": "llm",
+      "server": "job-search",
       "productUrl": "https://www.perplexity.ai/",
       "docsUrl": "https://www.perplexity.ai/help-center/en/articles/13915507-adding-custom-remote-connectors",
       "transport": "http",
@@ -932,5 +960,17 @@
         "https://www.perplexity.ai/help-center/en/articles/11502712-local-and-remote-mcps-for-perplexity"
       ]
     }
-  ]
+  ],
+  "servers": {
+    "job-search": {
+      "name": "jobo-job-search",
+      "url": "https://jobs-mcp.jobo.world/mcp",
+      "auth": "oauth"
+    },
+    "developer": {
+      "name": "jobo-developer",
+      "url": "https://dev-mcp.jobo.world/mcp",
+      "auth": "api-key"
+    }
+  }
 }

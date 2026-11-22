@@ -6,6 +6,7 @@ import {
   MCP_CLIENTS,
   renderClient,
   renderClientList,
+  serverOf,
   validateMcpClients,
   type McpClient,
   type McpClientsFile,
@@ -43,15 +44,42 @@ describe("src/data/mcp-clients.json", () => {
     expect(validateMcpClients(MCP_CLIENTS)).toEqual([]);
   });
 
-  it("points at the hosted server", () => {
+  it("points at the hosted servers", () => {
     expect(MCP_CLIENTS.serverUrl).toBe("https://jobs-mcp.jobo.world/mcp");
     expect(MCP_CLIENTS.serverName).toBe("jobo-job-search");
+    expect(MCP_CLIENTS.servers).toEqual({
+      "job-search": { name: "jobo-job-search", url: "https://jobs-mcp.jobo.world/mcp", auth: "oauth" },
+      developer: { name: "jobo-developer", url: "https://dev-mcp.jobo.world/mcp", auth: "api-key" },
+    });
   });
 
-  it("names the server URL in every entry's command or snippet", () => {
+  it("names its own server's URL in every entry's command or snippet, and never the other server's", () => {
     for (const entry of MCP_CLIENTS.clients) {
       const text = `${entry.install.command ?? ""}\n${entry.install.snippet ?? ""}\n${entry.install.uiSteps.join("\n")}`;
-      expect(text, entry.slug).toContain(MCP_CLIENTS.serverUrl);
+      const own = serverOf(MCP_CLIENTS, entry);
+      expect(text, entry.slug).toContain(own.url);
+      for (const other of Object.values(MCP_CLIENTS.servers ?? {})) {
+        if (other.url !== own.url) expect(text, entry.slug).not.toContain(other.url);
+      }
+    }
+  });
+
+  it("sets coding agents and IDEs up for the developer server, and assistants for job search", () => {
+    const serverFor = (slug: string) => MCP_CLIENTS.clients.find((entry) => entry.slug === slug)?.server;
+    for (const slug of ["claude-code", "codex", "cursor", "vs-code", "roo-code"]) expect(serverFor(slug), slug).toBe("developer");
+    for (const slug of ["chatgpt", "claude", "perplexity"]) expect(serverFor(slug), slug).toBe("job-search");
+    for (const entry of MCP_CLIENTS.clients) {
+      if (entry.category === "llm") expect(entry.server, entry.slug).toBe("job-search");
+    }
+  });
+
+  it("never holds an API key: a developer-server entry reads one from the environment or shows a placeholder", () => {
+    for (const entry of MCP_CLIENTS.clients) {
+      expect(JSON.stringify(entry), entry.slug).not.toMatch(/jbe_(live|test)_[A-Za-z0-9]/);
+      if (serverOf(MCP_CLIENTS, entry).auth !== "api-key") continue;
+      expect(entry.oauth, entry.slug).toBe("none");
+      const text = `${entry.install.command ?? ""}\n${entry.install.snippet ?? ""}\n${entry.install.uiSteps.join("\n")}`;
+      expect(text, entry.slug).toMatch(/JOBO_API_KEY|<your Jobo API key>|your Jobo API key/);
     }
   });
 
@@ -74,6 +102,25 @@ describe("src/data/mcp-clients.json", () => {
     expect(problems.some((p) => p.includes('"config-file" needs install.snippet and a path or projectPath'))).toBe(true);
     expect(problems.some((p) => p.includes('"ui" needs install.uiSteps'))).toBe(true);
   });
+
+  it("is rejected when an entry names a server that is not there, or mixes up the two kinds of auth", () => {
+    const servers = {
+      "job-search": { name: "jobo-job-search", url: "https://jobs-mcp.jobo.world/mcp", auth: "oauth" as const },
+      developer: { name: "jobo-developer", url: "https://dev-mcp.jobo.world/mcp", auth: "api-key" as const },
+    };
+    const file = (entry: McpClient) => ({ serverUrl: servers["job-search"].url, serverName: "jobo-job-search", servers, clients: [entry] });
+
+    expect(validateMcpClients(file(client({ server: "developer", oauth: "none" })))).toEqual([]);
+    expect(validateMcpClients(file(client({ server: "job-search", oauth: "native" })))).toEqual([]);
+    expect(validateMcpClients(file(client({ server: "analytics" }))).some((p) => p.includes('unknown server "analytics"'))).toBe(true);
+    expect(validateMcpClients(file(client({ server: "developer", oauth: "native" }))).some((p) => p.includes('oauth must be "none"'))).toBe(true);
+    expect(validateMcpClients(file(client({ server: "job-search", oauth: "none" }))).some((p) => p.includes('oauth must be "none"'))).toBe(true);
+    expect(
+      validateMcpClients({ ...file(client({})), servers: { developer: { name: "", url: "http://x", auth: "password" } } }).filter((p) =>
+        p.startsWith("servers.developer"),
+      ),
+    ).toHaveLength(3);
+  });
 });
 
 describe("jobo mcp", () => {
@@ -84,8 +131,12 @@ describe("jobo mcp", () => {
       expect(h.stdout()).toContain(entry.slug);
       expect(h.stdout()).toContain(entry.name);
     }
-    expect(h.stdout()).toContain(MCP_CLIENTS.serverUrl);
-    expect(h.stdout()).toContain("no API key");
+    // Both servers, and what each one takes. Wrapping moves the line breaks.
+    const flat = h.stdout().replace(/\s+/g, " ");
+    expect(flat).toContain(MCP_CLIENTS.serverUrl);
+    expect(flat).toContain("no API key");
+    expect(flat).toContain("https://dev-mcp.jobo.world/mcp");
+    expect(flat).toContain("your Jobo API key as a header");
   });
 
   it.each(MCP_CLIENTS.clients.map((entry) => [entry.slug, entry] as const))(
@@ -108,7 +159,11 @@ describe("jobo mcp", () => {
       for (const entryNote of entry.notes) has(entryNote);
       has(entry.docsUrl);
       has(entry.verified);
-      expect(text).toContain(MCP_CLIENTS.serverUrl);
+      const server = serverOf(MCP_CLIENTS, entry);
+      expect(text).toContain(`Server:     ${server.name} at ${server.url}`);
+      // The auth step is headed by what the server takes.
+      expect(text).toContain(server.auth === "api-key" ? "\nAPI key:\n" : "\nSign in:\n");
+      expect(text).not.toContain(server.auth === "api-key" ? "\nSign in:\n" : "\nAPI key:\n");
       expect(text).toContain("changes no files");
     },
   );
@@ -149,7 +204,27 @@ describe("jobo mcp", () => {
 
     const one = harness();
     await one.run("mcp", "cursor", "--json");
-    expect((JSON.parse(one.stdout()) as { client: McpClient }).client.slug).toBe("cursor");
+    const cursor = JSON.parse(one.stdout()) as { serverUrl: string; serverName: string; client: McpClient };
+    expect(cursor.client.slug).toBe("cursor");
+    // The server of that client, not always job search.
+    expect(cursor.serverUrl).toBe("https://dev-mcp.jobo.world/mcp");
+    expect(cursor.serverName).toBe("jobo-developer");
+
+    const assistant = harness();
+    await assistant.run("mcp", "claude", "--json");
+    expect((JSON.parse(assistant.stdout()) as { serverUrl: string }).serverUrl).toBe(MCP_CLIENTS.serverUrl);
+  });
+
+  it("says which server a client is set up for", async () => {
+    const coding = harness();
+    await coding.run("mcp", "claude-code");
+    expect(coding.stdout()).toContain("Claude Code: connect the Jobo developer MCP server");
+    expect(coding.stdout()).toContain("Auth:       your Jobo API key, sent as a header; there is no sign-in");
+
+    const assistant = harness();
+    await assistant.run("mcp", "claude");
+    expect(assistant.stdout()).toContain("Claude: connect the Jobo job search MCP server");
+    expect(assistant.stdout()).toContain("OAuth in the client");
   });
 });
 
