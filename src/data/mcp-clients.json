@@ -884,6 +884,43 @@
         "https://claude.com/docs/connectors/building",
         "https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp"
       ]
+    },
+    {
+      "slug": "perplexity",
+      "name": "Perplexity",
+      "vendor": "Perplexity",
+      "category": "llm",
+      "productUrl": "https://www.perplexity.ai/",
+      "docsUrl": "https://www.perplexity.ai/help-center/en/articles/13915507-adding-custom-remote-connectors",
+      "transport": "http",
+      "oauth": "native",
+      "install": {
+        "kind": "ui",
+        "command": null,
+        "path": null,
+        "projectPath": null,
+        "language": "bash",
+        "snippet": "https://jobs-mcp.jobo.world/mcp",
+        "uiSteps": [
+          "Open Plugins in the sidebar.",
+          "Select Add custom, then Add MCP connector, and choose Remote.",
+          "Enter a name and the server URL below.",
+          "Under Advanced, set Authentication to OAuth and Transport to Streamable HTTP.",
+          "Tick the checkbox acknowledging that custom connectors can introduce risks, then select Add."
+        ]
+      },
+      "signIn": "Select the connector's card on the Plugins page and complete the Jobo sign-in in the browser.",
+      "verify": "The connector is listed on the Plugins page without an error tag.",
+      "notes": [
+        "In the Mac app the path is Add custom, then Connector, then Add MCP connector.",
+        "In an organization, members can add a connector only when an administrator has turned on Allow members to add custom connectors. An administrator adds one for everyone under Organization settings → Connectors, where it starts turned off.",
+        "Perplexity's help centre does not say which plans include custom connectors."
+      ],
+      "verified": "2026-11-21",
+      "sources": [
+        "https://www.perplexity.ai/help-center/en/articles/13915507-adding-custom-remote-connectors",
+        "https://www.perplexity.ai/help-center/en/articles/11502712-local-and-remote-mcps-for-perplexity"
+      ]
     }
   ]
 }

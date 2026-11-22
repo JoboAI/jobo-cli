@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`jobo mcp perplexity`:** how to add the Jobo MCP server to Perplexity as a custom remote connector.
+
 ## 0.1.0
 
 First release.
