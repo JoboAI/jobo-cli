@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
+
+`jobo mcp` now knows both hosted Jobo MCP servers and sets each client up for the right one.
 
 ### Added
 
