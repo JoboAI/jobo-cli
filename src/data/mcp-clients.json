@@ -20,7 +20,7 @@
         "snippet": "claude mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
         "uiSteps": []
       },
-      "signIn": "Start Claude Code and run /mcp. The server shows as needing authentication; select it and complete the sign-in in the browser. From a shell, claude mcp login jobo-job-search does the same.",
+      "signIn": "Run claude mcp login jobo-job-search from a shell and complete the Jobo sign-in in the browser. The server connects and lists its tools without it, so Claude Code shows the server as connected either way. If you skip the sign-in, the first tool call fails with a message telling you to run /mcp, which starts the same sign-in from inside a session.",
       "verify": "Run claude mcp list and check that jobo-job-search shows as connected, or open /mcp inside a session to see the server and its tools.",
       "notes": [
         "The command adds the server for the current project only. Add --scope user to make it available in every project, or --scope project to write a shared .mcp.json.",
@@ -29,7 +29,8 @@
       "verified": "2026-11-20",
       "sources": [
         "https://code.claude.com/docs/en/mcp",
-        "https://code.claude.com/docs/en/mcp.md"
+        "https://code.claude.com/docs/en/mcp.md",
+        "https://claude.com/docs/connectors/building/lazy-authentication"
       ]
     },
     {
@@ -50,7 +51,7 @@
         "snippet": "codex mcp add jobo-job-search --url https://jobs-mcp.jobo.world/mcp\ncodex mcp login jobo-job-search",
         "uiSteps": []
       },
-      "signIn": "Run codex mcp login jobo-job-search, which opens the browser for the Jobo sign-in. Add --no-browser to print the URL instead.",
+      "signIn": "Run codex mcp login jobo-job-search, which opens the browser for the Jobo sign-in. Add --no-browser to print the URL instead. The server lists its tools before you sign in, but calling one needs it.",
       "verify": "Run codex mcp list, or type /mcp in the Codex TUI to see the active MCP servers.",
       "notes": [
         "codex mcp add does not sign you in; codex mcp login is a separate step.",
@@ -81,7 +82,7 @@
         "snippet": "qwen mcp add --transport http jobo-job-search https://jobs-mcp.jobo.world/mcp",
         "uiSteps": []
       },
-      "signIn": "Start qwen and open /mcp. Qwen Code discovers the server's OAuth endpoints, registers itself and runs the browser sign-in; select the server in the dialog to complete it.",
+      "signIn": "Start qwen and open /mcp, then select the server in the dialog to sign in: Qwen Code discovers the server's OAuth endpoints, registers itself and runs the browser sign-in. The server connects and lists its tools before you sign in, so do this before the first search.",
       "verify": "Run /mcp inside Qwen Code to see the server's status and tool list, or qwen mcp list from the shell.",
       "notes": [
         "The command writes to ~/.qwen/settings.json. Add --scope project to write .qwen/settings.json instead.",
@@ -111,8 +112,8 @@
         "snippet": "opencode mcp add jobo-job-search --global --url https://jobs-mcp.jobo.world/mcp\nopencode mcp auth jobo-job-search",
         "uiSteps": []
       },
-      "signIn": "Run opencode mcp auth jobo-job-search, which opens the browser. Inside OpenCode, /mcps lists the server and starts the same sign-in.",
-      "verify": "Run opencode mcp list. A ready server shows as connected; one still waiting for sign-in shows as needing authentication.",
+      "signIn": "Run opencode mcp auth jobo-job-search, which opens the browser. Inside OpenCode, /mcps lists the server and starts the same sign-in. The server connects and lists its tools before you sign in, so do this before the first search.",
+      "verify": "Run opencode mcp list and check that jobo-job-search shows as connected. It can show as connected before you have signed in, because the server lists its tools without it.",
       "notes": [
         "Without --global the server is added to the current project's opencode.json.",
         "Over SSH or in a container the browser callback page will not load. Copy that page's URL and paste it into the sign-in prompt.",
@@ -143,7 +144,7 @@
         "snippet": "extensions:\n  jobo-job-search:\n    name: jobo-job-search\n    type: streamable_http\n    uri: https://jobs-mcp.jobo.world/mcp\n    enabled: true\n    timeout: 300",
         "uiSteps": []
       },
-      "signIn": "Goose registers itself with the server automatically and opens an OAuth window in your browser. Approve access there.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Goose then registers itself with the server and opens an OAuth window in your browser. Approve access there.",
       "verify": "Check that the extension is listed and enabled under goose configure → Toggle Extensions, or in the Extensions list in goose Desktop.",
       "notes": [
         "The endpoint key is uri, not url, and the type is streamable_http.",
@@ -174,7 +175,7 @@
         "snippet": "amp mcp add jobo-job-search https://jobs-mcp.jobo.world/mcp",
         "uiSteps": []
       },
-      "signIn": "Start Amp after adding the server. It opens the Jobo sign-in page in your browser; approve access there.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Amp then opens the Jobo sign-in page in your browser; approve access there.",
       "verify": "Run amp mcp doctor to see the server's status.",
       "notes": [
         "A server added to workspace settings (.amp/settings.json) must be approved before it runs: amp mcp approve jobo-job-search.",
@@ -208,7 +209,7 @@
           "Start the server from the MCP servers page if it is not already running."
         ]
       },
-      "signIn": "Starting the server without stored credentials opens the Jobo sign-in in your browser. After you approve, Warp stores the credentials on your device and reuses them.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time an agent calls a tool. Warp then opens the Jobo sign-in in your browser. After you approve, Warp stores the credentials on your device and reuses them.",
       "verify": "On the MCP servers page the server shows as running, with its list of tools. Use View Logs on the server's row if it fails.",
       "notes": [
         "This applies to agents running locally in the Warp app. Warp's cloud agents cannot complete an interactive sign-in."
@@ -238,7 +239,7 @@
         "snippet": "gemini mcp add --transport http --scope user jobo-job-search https://jobs-mcp.jobo.world/mcp",
         "uiSteps": []
       },
-      "signIn": "The first connection triggers the OAuth flow and opens a browser for sign-in. Inside Gemini CLI, /mcp auth jobo-job-search starts or repeats it.",
+      "signIn": "Inside Gemini CLI, run /mcp auth jobo-job-search, which opens a browser for the Jobo sign-in. The server connects and lists its tools before you sign in, so do this before the first search.",
       "verify": "Run /mcp in the CLI to see the server as connected with its tools, or gemini mcp list from the shell.",
       "notes": [
         "--scope user writes ~/.gemini/settings.json. Without it the server is added to the current project only.",
@@ -267,11 +268,12 @@
         "snippet": "auggie mcp add jobo-job-search --command npx --args \"-y mcp-remote https://jobs-mcp.jobo.world/mcp\"",
         "uiSteps": []
       },
-      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
       "verify": "Run /mcp inside an Auggie session to see the status of configured servers, or auggie mcp list from the shell.",
       "notes": [
         "The command saves to ~/.augment/settings.json. Pass --project to write .augment/settings.json instead.",
-        "Auggie can also add the URL directly (--transport http --url), but its MCP documentation does not describe the OAuth sign-in for remote servers, so this guide uses the bridge."
+        "Auggie can also add the URL directly (--transport http --url), but its MCP documentation does not describe the OAuth sign-in for remote servers, so this guide uses the bridge.",
+        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
       ],
       "verified": "2026-11-20",
       "sources": [
@@ -303,7 +305,7 @@
         "snippet": "claude mcp add --transport http -s user jobo-job-search https://jobs-mcp.jobo.world/mcp",
         "uiSteps": []
       },
-      "signIn": "Open Conductor's MCP status dialog (the plug icon in the composer, or /mcp-status) and authenticate the server from its row. Running claude mcp login jobo-job-search in a terminal also works.",
+      "signIn": "Run claude mcp login jobo-job-search in a terminal and complete the Jobo sign-in in the browser. Conductor's MCP status dialog (the plug icon in the composer, or /mcp-status) offers the same sign-in on the server's row when the server needs it. The server connects and lists its tools before you sign in, so it can show as connected before you have.",
       "verify": "Click the plug icon in the composer, or run /mcp-status, and refresh the status.",
       "notes": [
         "Conductor has no MCP configuration of its own. Claude Code sessions use Claude Code's servers and Codex sessions use Codex's, so for Codex sessions follow the Codex setup instead.",
@@ -314,7 +316,8 @@
       "sources": [
         "https://www.conductor.build/docs/reference/mcp",
         "https://www.conductor.build/docs/guides/configure-mcp-servers",
-        "https://code.claude.com/docs/en/mcp"
+        "https://code.claude.com/docs/en/mcp",
+        "https://claude.com/docs/connectors/building/lazy-authentication"
       ]
     },
     {
@@ -335,7 +338,7 @@
         "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"type\": \"streamableHttp\",\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\",\n      \"disabled\": false,\n      \"autoApprove\": []\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "Cline runs a browser authorization for the server. In the Cline CLI, run cline mcp and choose Authorize OAuth to start or repeat it, then approve access in the browser.",
+      "signIn": "Cline runs a browser authorization for the server when it asks for sign-in, which is the first time a tool is called. In the Cline CLI you can start or repeat it yourself: run cline mcp and choose Authorize OAuth, then approve access in the browser.",
       "verify": "Open MCP Servers in Cline and confirm jobo-job-search is enabled and its tools are listed.",
       "notes": [
         "Keep \"type\": \"streamableHttp\". Without it Cline falls back to the legacy SSE transport, which this server does not offer.",
@@ -368,11 +371,12 @@
         "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
       "verify": "Open the MCP view in Roo Code and confirm jobo-job-search is listed, enabled, and shows its tools.",
       "notes": [
         "Open the global file from Roo Code's MCP view with Edit Global MCP. Edit Project MCP opens .roo/mcp.json.",
-        "On Windows, launch through cmd: set command to cmd and put /c, npx, -y, mcp-remote and the URL in args."
+        "On Windows, launch through cmd: set command to cmd and put /c, npx, -y, mcp-remote and the URL in args.",
+        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
       ],
       "verified": "2026-11-20",
       "sources": [
@@ -400,7 +404,7 @@
         "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"type\": \"http\",\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "In the CLI, start a session and run /mcp, then open the URL it prints and sign in while the session stays open. In the IDE, Amazon Q opens the browser authorization after you save the server.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. In the CLI, once Amazon Q reports that the server requires authentication, run /mcp, open the URL it prints and sign in while the session stays open. In the IDE, Amazon Q opens the browser authorization when the server asks for it.",
       "verify": "In the CLI, run /tools and confirm the jobo-job-search tools are listed. In the IDE, the server appears in the MCP servers panel with its tools.",
       "notes": [
         "In the IDE, open the Amazon Q chat panel, choose the tools icon, then +, select http as the transport and enter the same name and URL.",
@@ -436,12 +440,13 @@
         "snippet": "{\n  \"zencoder.mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ]\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
       "verify": "Open Agent Tools in Zencoder and confirm jobo-job-search and its tools appear.",
       "notes": [
         "In an existing settings.json, add only the zencoder.mcpServers key.",
         "In JetBrains IDEs, paste only the inner object (the jobo-job-search entry) under Settings → Tools → Zencoder → MCP Servers.",
-        "Restart the IDE after adding the server."
+        "Restart the IDE after adding the server.",
+        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
       ],
       "verified": "2026-11-20",
       "sources": [
@@ -473,11 +478,12 @@
           "Set the server level to global or the current project, click OK, then Apply."
         ]
       },
-      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
       "verify": "In the MCP settings table, check the Status column, and click the status icon to review the tools the server provides.",
       "notes": [
         "npx must be on the PATH the IDE sees.",
-        "Organisations that manage AI centrally through JetBrains can block user-added MCP servers."
+        "Organisations that manage AI centrally through JetBrains can block user-added MCP servers.",
+        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
       ],
       "verified": "2026-11-20",
       "sources": [
@@ -503,11 +509,12 @@
         "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"https://jobs-mcp.jobo.world/mcp\"\n      ],\n      \"transport\": \"stdio\"\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
       "verify": "Run acli rovodev run, then /mcp, and confirm jobo-job-search is listed as enabled with its tools.",
       "notes": [
         "acli rovodev mcp opens the file in your editor.",
-        "Rovo Dev CLI uses a transport key where most clients use type."
+        "Rovo Dev CLI uses a transport key where most clients use type.",
+        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
       ],
       "verified": "2026-11-20",
       "sources": [
@@ -535,7 +542,7 @@
         "snippet": "mcp add jobo-job-search --type http --url \"https://jobs-mcp.jobo.world/mcp\" --oauth true --sessionless true",
         "uiSteps": []
       },
-      "signIn": "With --oauth true, Crush registers itself with the server and runs the authorization flow. Complete the Jobo sign-in in the browser.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. With --oauth true, Crush then registers itself with the server and runs the authorization flow. Complete the Jobo sign-in in the browser.",
       "verify": "Start crush and confirm jobo-job-search appears as connected. crush logs shows connection errors if it does not.",
       "notes": [
         "crushrc is a shell-style file, not JSON. Add the line as it is.",
@@ -565,7 +572,7 @@
         "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "Cursor detects that the server requires OAuth and opens the Jobo sign-in page in your browser. Sign in, approve access and return to Cursor.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Cursor then opens the Jobo sign-in page in your browser. Sign in, approve access and return to Cursor.",
       "verify": "Open Customize in the Cursor sidebar and check that jobo-job-search is listed and switched on. If it is not, open the Output panel and pick MCP Logs.",
       "notes": [
         "A remote entry needs only url. No type field is required.",
@@ -595,7 +602,7 @@
         "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"type\": \"http\",\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\",\n      \"tools\": [\n        \"*\"\n      ]\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "Complete the sign-in when VS Code prompts for it, or choose Authenticate in the server's actions, then finish the Jobo sign-in in the browser.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Complete the sign-in when VS Code prompts for it, or choose Authenticate in the server's actions when it is offered, then finish the Jobo sign-in in the browser.",
       "verify": "Ask Copilot a question that needs job data and expand the tool call in the conversation to confirm it came from jobo-job-search.",
       "notes": [
         "Prefer the guided flow? With Copilot selected in the Chat view, run Chat: Open Customizations, select MCP Servers, then Add Server. Choose HTTP, enter the URL and the server ID jobo-job-search, and select Global, then Copilot Global.",
@@ -629,7 +636,7 @@
         "snippet": "{\n  \"servers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "Open the .mcp.json file in Visual Studio and select Authentication Required in the CodeLens above the server entry, then complete the Jobo sign-in in the browser.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. When it does, open the .mcp.json file in Visual Studio and select Authentication Required in the CodeLens above the server entry, then complete the Jobo sign-in in the browser.",
       "verify": "In the Copilot chat pane, choose Agent mode and open Tools. The jobo-job-search tools are listed there; they are off by default and must be ticked before use.",
       "notes": [
         "Requires Visual Studio 2026, or Visual Studio 2022 version 17.14 or later.",
@@ -659,7 +666,7 @@
         "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\",\n      \"transport\": \"http\"\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "The server appears under Customize → MCPs with a Needs authentication state. Click Authenticate and complete the Jobo sign-in in the browser.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. The server then appears under Customize → MCPs with a Needs authentication state: click Authenticate and complete the Jobo sign-in in the browser.",
       "verify": "Customize → MCPs lists jobo-job-search as enabled, without the Needs authentication state.",
       "notes": [
         "Windsurf has been renamed Devin Desktop. The file above is the location its current documentation gives.",
@@ -691,7 +698,7 @@
         "snippet": "{\n  \"mcpServers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "Kiro runs the browser sign-in automatically when it connects: it registers itself and opens the Jobo authorization page. If a token later expires, use the Re-authenticate button in the MCP panel.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Kiro then runs the browser sign-in: it registers itself and opens the Jobo authorization page. If a token later expires, use the Re-authenticate button in the MCP panel.",
       "verify": "Check the MCP servers tab in the Kiro panel to confirm jobo-job-search is connected.",
       "notes": [
         "MCP support must be switched on: open Settings, search for MCP and enable it.",
@@ -721,7 +728,7 @@
         "snippet": "{\n  \"context_servers\": {\n    \"jobo-job-search\": {\n      \"url\": \"https://jobs-mcp.jobo.world/mcp\"\n    }\n  }\n}",
         "uiSteps": []
       },
-      "signIn": "Because the entry has no Authorization header, Zed prompts you to authenticate. Follow the prompt and finish the Jobo sign-in in the browser.",
+      "signIn": "The server connects and lists its tools before you sign in, and asks for sign-in the first time a tool is called. Because the entry has no Authorization header, Zed then prompts you to authenticate. Follow the prompt and finish the Jobo sign-in in the browser.",
       "verify": "Open Settings → AI → MCP Servers. The indicator next to jobo-job-search is green when the server is active.",
       "notes": [
         "Open the file with the zed: open settings file action.",
@@ -756,12 +763,13 @@
           "Set the server level to global or the current project, click OK, then Apply."
         ]
       },
-      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
       "verify": "On the same settings page, the Status column shows the connection state. Click its icon to review the list of tools.",
       "notes": [
         "Junie has its own MCP settings, under Settings → Tools → Junie → MCP Settings, and takes the same mcpServers entry.",
         "This is the IDE as an MCP client. The separate Enable MCP Server setting exposes the IDE's own tools to other clients and is unrelated.",
-        "npx must be on the PATH of the IDE process."
+        "npx must be on the PATH of the IDE process.",
+        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
       ],
       "verified": "2026-11-20",
       "sources": [
@@ -794,11 +802,12 @@
           "Paste the JSON below and click Confirm."
         ]
       },
-      "signIn": "The first time the server starts, the mcp-remote bridge opens the Jobo sign-in page in your default browser. Approve access there; the bridge caches the tokens and later starts are silent.",
+      "signIn": "The bridge connects and lists the tools before you sign in. The first time a tool is called, mcp-remote opens the Jobo sign-in page in your default browser and holds the call while you approve access, then runs it. It caches the tokens, so later starts are silent.",
       "verify": "The server appears in the MCP server list under Settings → MCP, and its tools can be selected for an agent.",
       "notes": [
         "For a project-level server, turn on Project MCP under Settings → MCP and put the same JSON in .trae/mcp.json.",
-        "Trae passes at most 40 MCP tools to the model across all servers. Jobo's server has seven."
+        "Trae passes at most 40 MCP tools to the model across all servers. Jobo's server has seven.",
+        "mcp-remote waits 30 seconds for the sign-in by default. If the first call fails because you were still signing in, ask again, or give yourself longer by adding --auth-timeout and a number of seconds to the args."
       ],
       "verified": "2026-11-20",
       "sources": [
@@ -871,7 +880,7 @@
           "Keep the detected authentication options and click Add."
         ]
       },
-      "signIn": "Click Connect on the connector and complete the Jobo sign-in in the browser.",
+      "signIn": "Claude asks for sign-in the first time it uses a Jobo tool: a Connect card appears in the conversation. Click Connect and complete the Jobo sign-in in the popup, and Claude retries the call. If the connector's entry under Connectors shows a Connect button, clicking it signs you in ahead of time.",
       "verify": "In a chat, click + and check the connector is switched on under Connectors.",
       "notes": [
         "Custom connectors are available on every plan. The Free plan allows one.",
@@ -882,7 +891,8 @@
       "sources": [
         "https://claude.com/docs/connectors/custom/remote-mcp",
         "https://claude.com/docs/connectors/building",
-        "https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp"
+        "https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp",
+        "https://claude.com/docs/connectors/building/lazy-authentication"
       ]
     },
     {
@@ -909,7 +919,7 @@
           "Tick the checkbox acknowledging that custom connectors can introduce risks, then select Add."
         ]
       },
-      "signIn": "Select the connector's card on the Plugins page and complete the Jobo sign-in in the browser.",
+      "signIn": "Select the connector's card on the Plugins page and complete the Jobo sign-in in the browser. The server lists its tools before you sign in, so the connector can look ready before you have.",
       "verify": "The connector is listed on the Plugins page without an error tag.",
       "notes": [
         "In the Mac app the path is Add custom, then Connector, then Add MCP connector.",
