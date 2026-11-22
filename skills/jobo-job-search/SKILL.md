@@ -64,7 +64,7 @@ These are real charges on the user's account. Follow them.
 | `jobo geocode <location>` | Place name → coordinates and normalized names | $0.001 |
 | `jobo filters` | Fixed vocabularies, and ATS sources with live job counts | Free |
 | `jobo filters <facet> [query]` | Values of an open vocabulary, with live job counts | Free |
-| `jobo occupations` | The whole occupation taxonomy (large) | Free |
+| `jobo occupations [query]` | The occupation taxonomy (large), or the occupations whose name matches | Free |
 | `jobo usage` | Key in use and rate-limit position | Free |
 | `jobo mcp [client]` | How to connect the hosted Jobo MCP server to an AI client (prints only) | Free |
 | `jobo completion <bash\|zsh\|fish>` | Prints a tab-completion script for the user's shell (not something you need) | Free |
@@ -101,7 +101,7 @@ vocabulary is checked by the CLI before sending; for the open ones, look the val
 jobo filters                      # fixed vocabularies + every source with its job count
 jobo filters skills pyth          # skills starting with "pyth"
 jobo filters job_categories       # facets: sources, industries, skills, company_categories,
-jobo filters occupations nurse    #         job_categories, job_subcategories, occupations
+jobo filters occupations nurse    #         job_categories, job_subcategories, occupations (by name)
 jobo companies stripe             # company → ids, and on stderr the --companies value to paste
 jobo locations berlin             # place → exact names, and the feed's --locations value
 ```

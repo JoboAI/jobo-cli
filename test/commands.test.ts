@@ -367,15 +367,112 @@ describe("jobo filters and occupations", () => {
   });
 
   it("looks up one open vocabulary", async () => {
-    const options = [{ key: "esco:123", count: 900, name: "Registered Nurse", parent: "Nursing" }];
-    const h = harness({ env, tty: true, responder: () => json(200, { facet: "occupations", options }) });
-    expect(await h.run("filters", "occupations", "registered", "nurse", "--limit", "5")).toBe(0);
+    const options = [{ key: "python", count: 900 }];
+    const h = harness({ env, tty: true, responder: () => json(200, { facet: "skills", options }) });
+    expect(await h.run("filters", "skills", "pyth", "--limit", "5")).toBe(0);
     const url = new URL(h.requests[0]?.url ?? "");
-    expect(url.pathname).toBe("/api/connectors/filter-options/occupations");
-    expect(url.searchParams.get("q")).toBe("registered nurse");
+    expect(url.pathname).toBe("/api/connectors/filter-options/skills");
+    expect(url.searchParams.get("q")).toBe("pyth");
     expect(url.searchParams.get("limit")).toBe("5");
-    expect(h.stdout()).toMatch(/VALUE\s+NAME\s+PARENT\s+JOBS/);
-    expect(h.stdout()).toMatch(/esco:123\s+Registered Nurse\s+Nursing\s+900/);
+    expect(h.stdout()).toMatch(/VALUE\s+JOBS/);
+    expect(h.stdout()).toMatch(/python\s+900/);
+  });
+
+  it("lists the occupations with the most jobs when no name is given", async () => {
+    const options = [{ key: "esco:123", count: 900, name: "Registered Nurse", parent: "nursing" }];
+    const h = harness({ env, tty: true, responder: () => json(200, { facet: "occupations", options }) });
+    expect(await h.run("filters", "occupations", "--limit", "5")).toBe(0);
+    expect(h.requests).toHaveLength(1);
+    expect(new URL(h.requests[0]?.url ?? "").pathname).toBe("/api/connectors/filter-options/occupations");
+    expect(h.stdout()).toMatch(/esco:123\s+Registered Nurse\s+nursing\s+900/);
+  });
+
+  describe("occupations by name", () => {
+    // The live facet endpoint matches `q` against occupation ids, so a name
+    // search returned nothing. Names are matched in the taxonomy instead.
+    const taxonomy = {
+      version: "v1",
+      categories: [
+        {
+          name: "Healthcare",
+          subcategories: [
+            {
+              name: "Nursing",
+              occupations: [
+                { id: "esco:1", name: "Registered Nurse" },
+                { id: "esco:2", name: "Nurse Assistant" },
+                { id: "esco:3", name: "Midwife" },
+              ],
+            },
+          ],
+        },
+        { name: "Education", subcategories: [{ name: "Early Education", occupations: [{ id: "esco:4", name: "Nursery School Teacher" }] }] },
+      ],
+    };
+    const counted = { facet: "occupations", options: [{ key: "esco:2", count: 40 }, { key: "esco:1", count: 900 }] };
+    const responder = (request: { url: string }) =>
+      new URL(request.url).pathname === "/api/occupations" ? json(200, taxonomy) : json(200, counted);
+
+    it("matches every word against the name and puts the most jobs first", async () => {
+      const h = harness({ env, tty: true, responder });
+      expect(await h.run("filters", "occupations", "nurse")).toBe(0);
+      const paths = h.requests.map((request) => new URL(request.url).pathname).sort();
+      expect(paths).toEqual(["/api/connectors/filter-options/occupations", "/api/occupations"]);
+      // The id-only `q` is never sent for a name.
+      expect(h.requests.every((request) => new URL(request.url).searchParams.get("q") === null)).toBe(true);
+      const lines = h.stdout().trimEnd().split("\n");
+      expect(lines[0]).toMatch(/VALUE\s+NAME\s+PARENT\s+JOBS/);
+      expect(lines[1]).toMatch(/esco:1\s+Registered Nurse\s+Nursing\s+900/);
+      expect(lines[2]).toMatch(/esco:2\s+Nurse Assistant\s+Nursing\s+40/);
+      // A name that merely contains the word still matches, after the counted ones.
+      expect(lines[3]).toMatch(/esco:4\s+Nursery School Teacher\s+Early Education/);
+      expect(lines).toHaveLength(4);
+      expect(h.stdout()).not.toContain("Midwife");
+    });
+
+    it("narrows with a second word and keeps the facet's JSON shape", async () => {
+      const h = harness({ env, responder });
+      expect(await h.run("filters", "occupations", "nurse", "assistant")).toBe(0);
+      expect(JSON.parse(h.stdout())).toEqual({
+        facet: "occupations",
+        options: [{ key: "esco:2", count: 40, name: "Nurse Assistant", parent: "Nursing" }],
+      });
+    });
+
+    it("says so when an occupation has no job count, and when the list was cut", async () => {
+      const h = harness({ env, tty: true, responder });
+      expect(await h.run("filters", "occupations", "nurs", "--limit", "2")).toBe(0);
+      expect(h.stderr()).toContain("showing 2 of 3 matches");
+      const blank = harness({ env, tty: true, responder });
+      expect(await blank.run("filters", "occupations", "nursery")).toBe(0);
+      expect(blank.stdout()).toMatch(/esco:4\s+Nursery School Teacher\s+Early Education/);
+      expect(blank.stderr()).toContain("jobs is blank outside the 250 occupations");
+    });
+
+    it("finds an occupation by the start of its id", async () => {
+      const h = harness({ env, responder });
+      expect(await h.run("filters", "occupations", "esco:3")).toBe(0);
+      expect((JSON.parse(h.stdout()) as { options: Array<{ name: string }> }).options.map((option) => option.name)).toEqual(["Midwife"]);
+    });
+
+    it("reports no match without failing", async () => {
+      const h = harness({ env, tty: true, responder });
+      expect(await h.run("filters", "occupations", "astronaut")).toBe(0);
+      expect(h.stdout() + h.stderr()).toContain('No occupation name matches "astronaut".');
+    });
+
+    it("jobo occupations <query> filters the taxonomy with one request", async () => {
+      const h = harness({ env, responder });
+      expect(await h.run("occupations", "registered", "nurse")).toBe(0);
+      expect(h.requests).toHaveLength(1);
+      expect(JSON.parse(h.stdout())).toEqual({
+        version: "v1",
+        occupations: [
+          { category: "Healthcare", subcategory: "Nursing", id: "esco:1", name: "Registered Nurse", isco_code: null, onet_soc_codes: [] },
+        ],
+      });
+      expect(h.stderr()).toContain('1 of 4 occupations match "registered nurse"');
+    });
   });
 
   it("rejects an unknown facet without a request", async () => {

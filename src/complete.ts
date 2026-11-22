@@ -26,7 +26,13 @@ export const COMPLETE_COMMAND = "__complete";
 /** Printed alone when the word is a file name, which the shell completes better than we can. */
 export const FILES = "__files__";
 
-const TIMEOUT_MS = 1500;
+/**
+ * How long one lookup may take before TAB gives up. A request from another
+ * continent spends about a second on the connection alone, and the lookups
+ * themselves were measured at 0.4 to 3 seconds against the live API, so a
+ * shorter limit made completion come and go.
+ */
+const TIMEOUT_MS = 4000;
 const CACHE_TTL_MS = 10 * 60_000;
 /** The most values a facet request returns; a list this long may have been cut off. */
 const LIST_LIMIT = 250;

@@ -192,7 +192,7 @@ describe("jobo __complete: looked-up values", () => {
     expect(path(h)).toBe("/api/connectors/filter-options/sources");
     expect(param(h, "limit")).toBe("250");
     expect(param(h, "q")).toBeNull();
-    expect(h.requests[0]?.timeoutMs).toBe(1500);
+    expect(h.requests[0]?.timeoutMs).toBe(4000);
     expect(h.requests[0]?.headers["X-Api-Key"]).toBe(LIVE_KEY);
     expect(readdirSync(join(h.home, ".cache", "jobo"))).toEqual(["complete-sources.json"]);
 
@@ -376,7 +376,7 @@ describe("jobo __complete: looked-up values", () => {
     for (const request of h.requests) {
       expect(request.method).toBe("GET");
       expect(new URL(request.url).pathname).toMatch(/^\/api\/connectors\/(filter-options\/[a-z_]+|companies\/suggest|locations\/suggest)$/);
-      expect(request.timeoutMs).toBe(1500);
+      expect(request.timeoutMs).toBe(4000);
     }
   });
 

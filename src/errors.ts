@@ -143,7 +143,7 @@ export function describeError(error: unknown, context: ErrorContext = {}): Descr
       if (error.code === "not_available_in_sandbox") {
         return {
           message:
-            "This endpoint is not available with a sandbox key (jbe_test_…). The sandbox serves search, job and company lookups; use a live key for the rest.",
+            "This endpoint is not available with a sandbox key (jbe_test_…). The sandbox serves job search and lookups by id (`jobo job`, `jobo company`); use a live key for the rest.",
           exitCode: EXIT.NOT_FOUND,
         };
       }

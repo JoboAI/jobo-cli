@@ -12,11 +12,15 @@ import { int, wrap, type CommandDef, type Ctx } from "../args";
 import { UsageError } from "../errors";
 import { FILTER_FACETS } from "../filters";
 import { emitDocument, emitRecords, openSink, resolveFormat, toTable } from "../output";
-import { openSession } from "../session";
+import { formatNumber, note, openSession } from "../session";
 import { canonical, didYouMean } from "../suggest";
+import { flattenOccupations, matchOccupations } from "./occupations";
 
 /** The most values one facet request returns. */
 export const MAX_OPTIONS = 250;
+
+/** What a facet lookup returns when --limit is not given: the API's own default. */
+const DEFAULT_OPTIONS = 50;
 
 /** Vocabularies the API does not serve live: fixed lists from the shared contract. */
 const CONTRACT_VOCABULARIES = {
@@ -89,6 +93,7 @@ async function run(ctx: Ctx): Promise<number> {
     throw new UsageError(`Unknown facet "${given}".${elsewhere} Facets: ${FILTER_FACETS.join(", ")}.`);
   }
   const query = rest.join(" ").trim();
+  if (facet === "occupations" && query !== "") return occupationsByName(ctx, query, limit ?? DEFAULT_OPTIONS);
   const sink = openSink(ctx, format);
   try {
     const { data } = await openSession(ctx).client.filterOptions(facet as FilterOptionsFacet, {
@@ -106,6 +111,49 @@ async function run(ctx: Ctx): Promise<number> {
       empty: "No values match.",
       envelope: (rows) => ({ ...data, options: rows }),
     });
+  } finally {
+    sink.close();
+  }
+  return 0;
+}
+
+/**
+ * `jobo filters occupations <query>`. The facet endpoint's `q` matches
+ * occupation ids, not names, so a name is looked up in the taxonomy. The facet
+ * is still read once, for the live job counts of the occupations it lists.
+ */
+async function occupationsByName(ctx: Ctx, query: string, limit: number): Promise<number> {
+  const format = resolveFormat(ctx.values, ctx.io);
+  const sink = openSink(ctx, format);
+  try {
+    const session = openSession(ctx);
+    const [taxonomy, counted] = await Promise.all([
+      session.client.occupations(),
+      session.client.filterOptions("occupations", { limit: MAX_OPTIONS }),
+    ]);
+    const counts = new Map((counted.data.options ?? []).map((option) => [option.key, option.count]));
+    const matches = matchOccupations(flattenOccupations(taxonomy.data), query)
+      .map((row) => ({ key: row.id, count: counts.get(row.id) ?? null, name: row.name, parent: row.subcategory }))
+      // Most live jobs first; an occupation outside the counted list has no figure and sorts after.
+      .sort((a, b) => (b.count ?? -1) - (a.count ?? -1) || a.name.localeCompare(b.name));
+    const rows = matches.slice(0, limit);
+    await emitRecords(ctx, sink, format, {
+      rows,
+      columns: [
+        { key: "key", header: "value", max: 60 },
+        { key: "name", max: 40 },
+        { key: "parent", max: 30 },
+        { key: "count", header: "jobs" },
+      ],
+      empty: `No occupation name matches "${query}".`,
+      envelope: (projected) => ({ facet: "occupations", options: projected }),
+    });
+    if (matches.length > rows.length) {
+      note(ctx, `showing ${formatNumber(rows.length)} of ${formatNumber(matches.length)} matches; raise --limit or add a word.`);
+    }
+    if (rows.some((row) => row.count === null)) {
+      note(ctx, `jobs is blank outside the ${MAX_OPTIONS} occupations with the most live jobs.`);
+    }
   } finally {
     sink.close();
   }

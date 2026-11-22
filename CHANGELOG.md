@@ -29,8 +29,10 @@ First release.
 - **`jobo locations <query>`:** a free place lookup. Each match comes with the value the feed's
   `--locations` takes (`country=…,region=…,city=…`), and the name search's `--location` takes.
 - **`jobo geocode <location>`:** resolve a place name ($0.001 per lookup).
-- **`jobo filters`, `jobo filters <facet> [query]`, `jobo occupations`:** valid filter values, with live
-  job counts. A facet can be spelled as its flag is (`job-categories` for `job_categories`).
+- **`jobo filters`, `jobo filters <facet> [query]`, `jobo occupations [query]`:** valid filter values,
+  with live job counts. A facet can be spelled as its flag is (`job-categories` for `job_categories`).
+  Occupations are searched by name: every word of the query must appear in the occupation's name. The
+  API's own facet search matches occupation ids only, so the names are read from the taxonomy.
 - **`jobo usage`:** the key in use and its rate-limit position, from a free call.
 - **`jobo mcp [client]`:** print how to connect the hosted Jobo MCP server to an AI client. Print-only.
 - **`jobo skill install | path | show`:** the bundled `jobo-job-search` Agent Skill.
@@ -38,7 +40,7 @@ First release.
   commands, flags, the values of fixed lists, facet names and MCP client ids, and looks up live values
   with the saved key: sources, industries and job categories (cached for ten minutes), skills, and
   companies (completed to their domain) and places as they are typed. In a comma-separated value the
-  last item is completed. The lookups use free endpoints only, time out after 1.5 seconds and are
+  last item is completed. The lookups use free endpoints only, time out after 4 seconds and are
   silent on any failure. The script calls back into `jobo` for its candidates, so it never goes stale.
 - **Forgiving input:** an unknown flag, command, subcommand, facet or fixed value is refused with the
   nearest match ("Did you mean --work-model?"). Filter flags work in the singular or the plural on both

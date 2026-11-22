@@ -267,15 +267,17 @@ sandbox key.
 ```bash
 jobo filters                       # fixed vocabularies, and every source with its live job count
 jobo filters skills pyth           # values of one open vocabulary, optionally narrowed by a query
-jobo filters occupations nurse --json
+jobo filters occupations nurse     # occupations by name, most live jobs first
+jobo occupations registered nurse  # the same search over the taxonomy, without job counts
 jobo occupations --csv -o occupations.csv
 ```
 
 Facets: `sources`, `industries`, `skills`, `company_categories`, `job_categories`, `job_subcategories`,
 `occupations`. A facet can be written the way its flag is (`jobo filters job-categories`). `--limit N`
 (1–250, default 50; also `--max`). The `value` column is what the matching search flag takes; for
-occupations that is the occupation id. `jobo occupations` prints the whole taxonomy. All free; none are
-available with a sandbox key.
+occupations that is the occupation id. A query narrows a facet by the start of its values, except for
+occupations, where every word must appear in the occupation's name. `jobo occupations` prints the whole
+taxonomy, or the occupations a query matches. All free; none are available with a sandbox key.
 
 ### `jobo usage`
 
@@ -380,8 +382,8 @@ TAB then completes:
 - the last item of a comma-separated value: `--work-model remote,hy` completes to `remote,hybrid`;
 - file names for `-o` and `--cursor-file`, which are left to the shell.
 
-The lookups call free endpoints only, give up after 1.5 seconds, never retry, and print nothing when
-there is no key or no network, so TAB never hangs and never costs anything. The script itself is static:
+The lookups call free endpoints only, give up after 4 seconds, never retry, and print nothing when
+there is no key or no network, so TAB never hangs for long and never costs anything. The script itself is static:
 it asks `jobo` for the candidates each time, so it does not need reinstalling when the CLI is updated.
 
 ## Environment
