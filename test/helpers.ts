@@ -39,6 +39,8 @@ export interface HarnessOptions {
   secret?: string;
   now?: Date;
   platform?: NodeJS.Platform;
+  /** What opening a browser reports. Default true: one was started. Nothing is ever opened. */
+  browser?: boolean;
 }
 
 export interface Harness {
@@ -51,6 +53,10 @@ export interface Harness {
   body(index?: number): Record<string, unknown>;
   sleeps: number[];
   prompts: string[];
+  /** URLs the command handed to the browser. */
+  opened: string[];
+  /** Press Ctrl-C: calls whatever is listening for an interrupt. */
+  interrupt(): void;
   home: string;
   cwd: string;
 }
@@ -66,6 +72,8 @@ export function harness(options: HarnessOptions = {}): Harness {
   const requests: TransportRequest[] = [];
   const sleeps: number[] = [];
   const prompts: string[] = [];
+  const opened: string[] = [];
+  const interruptHandlers = new Set<() => void>();
   const home = mkdtempSync(join(tmpdir(), "jobo-cli-home-"));
   const cwd = mkdtempSync(join(tmpdir(), "jobo-cli-cwd-"));
   tempDirs.push(home, cwd);
@@ -107,6 +115,16 @@ export function harness(options: HarnessOptions = {}): Harness {
       sleeps.push(ms);
     },
     now: () => options.now ?? new Date("2026-11-20T12:00:00.000Z"),
+    openBrowser: async (url) => {
+      opened.push(url);
+      return options.browser ?? true;
+    },
+    onInterrupt: (handler) => {
+      interruptHandlers.add(handler);
+      return () => {
+        interruptHandlers.delete(handler);
+      };
+    },
   };
 
   return {
@@ -118,6 +136,10 @@ export function harness(options: HarnessOptions = {}): Harness {
     body: (index = 0) => JSON.parse(requests[index]?.body ?? "{}") as Record<string, unknown>,
     sleeps,
     prompts,
+    opened,
+    interrupt: () => {
+      for (const handler of [...interruptHandlers]) handler();
+    },
     home,
     cwd,
   };

@@ -92,8 +92,9 @@ const anything = () =>
 /**
  * Run a documented command line for real, against a backend that answers
  * anything: the flags have to exist, the values have to be valid and the
- * command must not be refused. `jobo auth` and `jobo logout` are only parsed,
- * since they prompt for, save or remove a key.
+ * command must not be refused. `jobo login`, `jobo auth` and `jobo logout` are
+ * only parsed, since they wait for a sign-in, prompt for a key, or save or
+ * remove one.
  */
 async function runDocumented(line: string): Promise<void> {
   const [program, name, ...rest] = shellWords(line);
@@ -103,7 +104,7 @@ async function runDocumented(line: string): Promise<void> {
   expect(top, `${line}: no such command`).toBeDefined();
   const sub = top?.subcommands?.find((entry) => entry.name === rest[0]);
   expect(() => parseCommandArgs(sub ? rest.slice(1) : rest, optionsFor((sub ?? top) as CommandDef)), line).not.toThrow();
-  if (name === "auth" || name === "logout") return;
+  if (name === "login" || name === "auth" || name === "logout") return;
 
   const h = harness({ env: { JOBO_API_KEY: LIVE_KEY }, responder: anything });
   writeFileSync(join(h.cwd, "feed.json"), '{"job_subcategories":{"include":["Nursing"]}}');

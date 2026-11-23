@@ -13,7 +13,7 @@ export const EXIT = {
   ERROR: 1,
   /** Bad command line: unknown flag, missing argument, invalid value. Nothing billable was sent. */
   USAGE: 2,
-  /** No API key, a malformed one, or one the API rejected (401). */
+  /** No API key, a malformed one, one the API rejected (401), or a sign-in that did not complete. */
   AUTH: 3,
   /** 402: included jobs and wallet balance cannot cover the request. */
   CREDITS: 4,
@@ -77,7 +77,8 @@ function bodyString(body: unknown, key: string): string | null {
   return null;
 }
 
-function sentence(text: string): string {
+/** `text` as one sentence: trimmed, with a full stop unless it already ends in punctuation. */
+export function sentence(text: string): string {
   const trimmed = text.trim();
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
@@ -135,7 +136,7 @@ export function describeError(error: unknown, context: ErrorContext = {}): Descr
       return {
         message:
           `The API rejected this key: ${sentence(detail)} Check it under Developers → API Keys at ${URLS.apiKeys}, ` +
-          "then run `jobo auth`.",
+          "then run `jobo login` to sign in again, or `jobo auth` to save another key.",
         exitCode: EXIT.AUTH,
       };
     }

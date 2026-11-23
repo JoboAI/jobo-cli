@@ -15,9 +15,12 @@ npm install -g jobo-cli        # Node 20+. Or run once with: npx jobo-cli <comma
 jobo auth --show               # is a key configured? prints it masked; exit 3 means no
 ```
 
-If no key is configured, ask the user to run `jobo auth` themselves (it prompts without echoing) or
-to set `JOBO_API_KEY`. Keys are created at https://enterprise.jobo.world/api-keys. Never print a key,
-and do not put one in a command you show the user: use the saved key or the environment variable.
+If no key is configured, ask the user to run `jobo login` themselves in their own terminal (it opens
+their browser to sign in and saves the key), or `jobo auth` (it prompts for a key without echoing), or
+to set `JOBO_API_KEY`. Do not run `jobo login` yourself: it waits for a person to sign in through a
+browser on the same machine, so in a non-interactive shell it only times out. Keys are created at
+https://enterprise.jobo.world/api-keys. Never print a key, and do not put one in a command you show
+the user: use the saved key or the environment variable.
 
 A sandbox key (`jbe_test_…`) is free and returns fictional jobs. It only serves `search`, `job` and
 `company`; every other command answers "not available with a sandbox key" (exit 6).

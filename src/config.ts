@@ -15,7 +15,14 @@ export interface ResolvedKey {
 
 interface ConfigFile {
   api_key?: string;
+  /** True when `jobo login` saved the key: `jobo logout` then hands it back to Jobo. */
+  signed_in?: boolean;
+  /** The account `jobo login` signed in. A key saved any other way has none. */
+  account_email?: string;
 }
+
+/** Where `jobo login` signs in: the dashboard host, which serves the OAuth endpoints. */
+export const DEFAULT_AUTH_URL = "https://enterprise.jobo.world";
 
 /**
  * `$XDG_CONFIG_HOME/jobo/config.json`, defaulting to `~/.config/jobo/config.json`
@@ -50,7 +57,7 @@ function readConfig(path: string): ConfigFile {
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch {
-    throw new CliError(`${path} is not valid JSON. Fix it, or delete it and run \`jobo auth\` again.`);
+    throw new CliError(`${path} is not valid JSON. Fix it, or delete it and run \`jobo login\` or \`jobo auth\` again.`);
   }
   return parsed && typeof parsed === "object" ? (parsed as ConfigFile) : {};
 }
@@ -60,27 +67,55 @@ export function readSavedKey(io: Pick<Io, "env" | "homedir" | "platform">): stri
   return typeof key === "string" && key.trim() !== "" ? key.trim() : null;
 }
 
-/** Owner-only file (0600) in an owner-only directory (0700). */
-export function saveKey(io: Pick<Io, "env" | "homedir" | "platform">, key: string): string {
+/** The account the saved key was signed in for, when `jobo login` saved it. Null without a saved key. */
+export function readSavedEmail(io: Pick<Io, "env" | "homedir" | "platform">): string | null {
+  if (!readSavedKey(io)) return null;
+  const email = readConfig(configPath(io)).account_email;
+  return typeof email === "string" && email.trim() !== "" ? email.trim() : null;
+}
+
+/** True when the saved key is one `jobo login` was given, not one the user created and saved with `jobo auth`. */
+export function isSavedKeySignedIn(io: Pick<Io, "env" | "homedir" | "platform">): boolean {
+  return readSavedKey(io) !== null && readConfig(configPath(io)).signed_in === true;
+}
+
+/**
+ * Owner-only file (0600) in an owner-only directory (0700). `jobo auth` and
+ * `jobo login` both save through here. `signIn` marks a key that `jobo login`
+ * was given, with the account it is for when the sign-in shared the email;
+ * saving a key without it forgets both for the key it replaces.
+ */
+export function saveKey(
+  io: Pick<Io, "env" | "homedir" | "platform">,
+  key: string,
+  signIn?: { accountEmail: string | null },
+): string {
   const path = configPath(io);
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const config: ConfigFile = { ...readConfig(path), api_key: key };
+  if (signIn) config.signed_in = true;
+  else delete config.signed_in;
+  if (signIn?.accountEmail) config.account_email = signIn.accountEmail;
+  else delete config.account_email;
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
   // `mode` only applies when the file is created; tighten one that already existed.
   chmodSync(path, 0o600);
   return path;
 }
 
-/** Returns true when a saved key was removed. */
+/** Removes the saved key and what a sign-in kept with it. Returns true when a saved key was removed. */
 export function removeSavedKey(io: Pick<Io, "env" | "homedir" | "platform">): boolean {
   const path = configPath(io);
   if (!existsSync(path)) return false;
   const config = readConfig(path);
-  if (config.api_key === undefined) return false;
+  const hadKey = config.api_key !== undefined;
+  if (!hadKey && config.account_email === undefined && config.signed_in === undefined) return false;
   delete config.api_key;
+  delete config.signed_in;
+  delete config.account_email;
   if (Object.keys(config).length === 0) rmSync(path);
   else writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
-  return true;
+  return hadKey;
 }
 
 /** True when group or others can read the config file. Always false on Windows. */
@@ -103,7 +138,7 @@ export function requireApiKey(io: Pick<Io, "env" | "homedir" | "platform">, flag
   const resolved = resolveApiKey(io, flagValue);
   if (!resolved) {
     throw new CliError(
-      `No API key. Run \`jobo auth\`, set JOBO_API_KEY, or pass --api-key. Create a key at ${URLS.apiKeys}`,
+      `No API key. Run \`jobo login\` to sign in, or save a key with \`jobo auth\`, set JOBO_API_KEY, or pass --api-key. Create a key at ${URLS.apiKeys}`,
       EXIT.AUTH,
     );
   }
@@ -136,16 +171,28 @@ export function keyEnvironment(key: string): "live" | "sandbox" {
  * request body.
  */
 export function resolveApiUrl(io: Pick<Io, "env">, flagValue?: string): string {
-  const raw = flagValue?.trim() || io.env.JOBO_API_URL?.trim() || DEFAULT_BASE_URL;
+  return checkedUrl(flagValue?.trim() || io.env.JOBO_API_URL?.trim() || DEFAULT_BASE_URL, "API");
+}
+
+/**
+ * The host `jobo login` signs in at: `--auth-url` beats `JOBO_AUTH_URL`, which
+ * beats the dashboard. Held to the same rule as the API URL, because the key
+ * comes back from this host.
+ */
+export function resolveAuthUrl(io: Pick<Io, "env">, flagValue?: string): string {
+  return checkedUrl(flagValue?.trim() || io.env.JOBO_AUTH_URL?.trim() || DEFAULT_AUTH_URL, "sign-in");
+}
+
+function checkedUrl(raw: string, what: "API" | "sign-in"): string {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new UsageError(`"${raw}" is not a valid API URL.`);
+    throw new UsageError(`"${raw}" is not a valid ${what} URL.`);
   }
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
   if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) {
-    throw new UsageError(`The API URL must use https (plain http is only accepted for localhost): ${raw}`);
+    throw new UsageError(`The ${what} URL must use https (plain http is only accepted for localhost): ${raw}`);
   }
   return raw.replace(/\/+$/, "");
 }

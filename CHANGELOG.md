@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0
+
+`jobo login` signs you in with your Jobo account in the browser, so there is no key to create and paste.
+
+### Added
+
+- **`jobo login`:** opens Jobo's sign-in page (OAuth 2.0 authorization code with PKCE). After you approve,
+  an API key for your account comes back to the command on `127.0.0.1` and is saved where `jobo auth`
+  saves one, with mode `0600`, next to the account's email. The key is never printed. `--no-browser`
+  prints the sign-in URL without opening a browser. The command waits five minutes; Ctrl-C cancels it.
+- `JOBO_AUTH_URL` and `--auth-url` point `jobo login` at another sign-in host, for tests.
+
+### Changed
+
+- `jobo auth --show` names the account a sign-in saved.
+- `jobo logout` revokes a key that `jobo login` saved: the key stops working and the Jobo CLI is
+  disconnected from the account. If Jobo cannot be reached, the key is still removed from the machine and
+  the command says to disconnect the CLI under **Developers → API Keys**. A key saved with `jobo auth` is
+  only removed from the machine, as before.
+- The no-key messages point to `jobo login` first. `jobo auth`, `--api-key` and `JOBO_API_KEY` work as
+  before, and `JOBO_API_KEY` still beats a saved sign-in.
+
 ## 0.2.0
 
 `jobo mcp` now knows both hosted Jobo MCP servers and sets each client up for the right one.

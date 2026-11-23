@@ -16,6 +16,7 @@ import { filtersCommand } from "./commands/filters";
 import { geocodeCommand } from "./commands/geocode";
 import { jobCommand } from "./commands/job";
 import { locationsCommand } from "./commands/locations";
+import { loginCommand } from "./commands/login";
 import { mcpCommand } from "./commands/mcp";
 import { occupationsCommand } from "./commands/occupations";
 import { searchCommand } from "./commands/search";
@@ -28,6 +29,7 @@ import { VERSION } from "./session";
 import { didYouMean } from "./suggest";
 
 export const COMMANDS: readonly CommandDef[] = [
+  loginCommand,
   authCommand,
   logoutCommand,
   searchCommand,
@@ -76,7 +78,7 @@ export function rootHelp(): string {
     "",
     `Exit codes: 0 ok · 1 error · 2 usage · 3 auth · 4 insufficient credits · 5 rate limited · 6 not found · 7 API unreachable · 8 feed cursor must restart`,
     "",
-    `Get started: ${PROGRAM} auth    Tab completion: ${PROGRAM} completion --help    Docs: ${URLS.docs}`,
+    `Get started: ${PROGRAM} login    Tab completion: ${PROGRAM} completion --help    Docs: ${URLS.docs}`,
   ];
   return `${lines.join("\n")}\n`;
 }

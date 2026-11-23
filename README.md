@@ -22,20 +22,37 @@ Then turn on [tab completion](#shell-completion) for bash, zsh or fish.
 
 ## Authenticate
 
-Create an API key in the [dashboard](https://enterprise.jobo.world/api-keys) under **Developers → API
-Keys** ([sign up](https://enterprise.jobo.world/register) first if you have no account), then:
+Sign in with your Jobo account ([sign up](https://enterprise.jobo.world/register) first if you have none):
+
+```bash
+jobo login                   # opens your browser to sign in with Jobo
+jobo login --no-browser      # prints the sign-in URL without opening a browser
+jobo auth --show             # where the key is stored, which one is in use (masked), and the account
+jobo logout                  # remove the saved key, and revoke it if you signed in
+```
+
+`jobo login` opens Jobo's sign-in page. After you sign in and approve the request, an API key for your
+account comes back to the command on `127.0.0.1` and is saved for you. The key is never printed. The
+sign-in URL is always printed too, so you can open it yourself; the browser has to run on the same machine
+as the command. The command waits five minutes, and Ctrl-C cancels it.
+
+The key does not expire. The Jobo CLI is listed under **Developers → API Keys** in the
+[dashboard](https://enterprise.jobo.world/api-keys) as a connected app. `jobo logout` revokes the key and
+removes the CLI from that list; disconnecting it in the dashboard does the same from the other side. A key
+you created and saved with `jobo auth` is only removed from this machine by `jobo logout`.
+
+On a remote machine, in a script or in CI, use an API key. Create one in the dashboard under
+**Developers → API Keys**, then:
 
 ```bash
 jobo auth                    # prompts for the key without echoing it
 jobo auth --api-key KEY      # or pass it
 echo "$KEY" | jobo auth      # or pipe it
-jobo auth --show             # where the key is stored and which one is in use, masked
-jobo logout                  # remove the saved key
 ```
 
-`jobo auth` checks the key's shape, then verifies it with one call that is never billed, and saves it to
-`$XDG_CONFIG_HOME/jobo/config.json` (default `~/.config/jobo/config.json`; `%APPDATA%\jobo\config.json`
-on Windows) with mode `0600`. `--no-verify` skips the check.
+`jobo auth` checks the key's shape, then verifies it with one call that is never billed. `--no-verify`
+skips the check. Both commands save the key to `$XDG_CONFIG_HOME/jobo/config.json` (default
+`~/.config/jobo/config.json`; `%APPDATA%\jobo\config.json` on Windows) with mode `0600`.
 
 Which key a command uses, first match wins:
 
@@ -397,6 +414,7 @@ it asks `jobo` for the candidates each time, so it does not need reinstalling wh
 | --- | --- |
 | `JOBO_API_KEY` | API key. Beats the saved key; `--api-key` beats both. |
 | `JOBO_API_URL` | API base URL, default `https://connect.jobo.world`. For proxies and tests; plain `http` is accepted for localhost only. |
+| `JOBO_AUTH_URL` | Host `jobo login` signs in at, default `https://enterprise.jobo.world`. For tests; plain `http` is accepted for localhost only. |
 | `XDG_CONFIG_HOME` | Moves the config file to `$XDG_CONFIG_HOME/jobo/config.json`. |
 | `XDG_CACHE_HOME` | Moves the completion cache to `$XDG_CACHE_HOME/jobo` (default `~/.cache/jobo`; `%LOCALAPPDATA%\jobo\cache` on Windows). Safe to delete. |
 
