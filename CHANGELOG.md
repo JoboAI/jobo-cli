@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.4.0
+
+Fixes for runs that ended early, or looked finished when they were not.
+
+### Changed
+
+- **`jobo expired` returns every id in the window by default.** It used to stop at 1,000 and exit 0, so
+  a store synced from it could keep closed jobs live. `--limit N` (also `--max`) is now an opt-in cap;
+  `--all` is still accepted.
+- `jobo company` refuses an argument that is not a company id (a GUID), such as `stripe.com`, before
+  sending anything, and names `jobo companies` to look the ids up. It used to answer that no company had
+  that id.
+
+### Fixed
+
+- **`jobo feed --json`, `--table` or `-o FILE.json` no longer loses jobs when a later batch fails.** The
+  cursor file was saved after every batch while the jobs waited to be written at the end, so a `402` or
+  `503` part-way left a cursor past jobs that were billed but never written. The jobs fetched before the
+  error are now written, with `"partial": true` in the JSON, and only then is the cursor file saved.
+- A feed cursor the API will not continue (`409 feed_cursor_restart_required`, `400 invalid_cursor`) no
+  longer fails every later run: when it came from `--cursor-file FILE`, the file is moved to `FILE.dead`
+  and the next run starts a new scan. The exit code is still 8.
+- A closed stderr (the log reader went away) no longer ends the run with exit 0. The run carries on
+  without its progress lines and exits with its own code. A closed stdout still stops the run, as before.
+- `jobo completion --help` says lookups give up after 4 seconds, as they do; it said 1.5.
+- The README and `jobo feed --help` say that a resumed scan can deliver a page again, so jobs appended
+  with `--append` should be loaded by job id.
+
 ## 0.3.0
 
 `jobo login` signs you in with your Jobo account in the browser, so there is no key to create and paste.

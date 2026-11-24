@@ -114,6 +114,38 @@ describe("jobo expired", () => {
     expect(h.stderr()).toContain("next cursor: 15000");
   });
 
+  /** `total` expired ids, served `batch_size` at a time; the cursor is the offset. */
+  function expiredIds(total: number) {
+    return (request: { url: string }) => {
+      const url = new URL(request.url);
+      const offset = Number(url.searchParams.get("cursor") ?? "0");
+      const size = Number(url.searchParams.get("batch_size"));
+      const count = Math.min(size, total - offset);
+      const ids = Array.from({ length: count }, (_, index) => `e${offset + index}`);
+      const next = offset + count;
+      return json(200, { job_ids: ids, next_cursor: next < total ? String(next) : null, has_more: next < total });
+    };
+  }
+
+  it("walks every page by default: a list cut short would leave closed jobs live", async () => {
+    const h = harness({ env, responder: expiredIds(23_456) });
+    expect(await h.run("expired", "--jsonl")).toBe(0);
+    expect(h.requests.map((request) => new URL(request.url).searchParams.get("batch_size"))).toEqual(["10000", "10000", "10000"]);
+    expect(h.stdout().trimEnd().split("\n")).toHaveLength(23_456);
+    expect(h.stderr()).toContain("23,456 expired job ids.");
+    expect(h.stderr()).not.toContain("more remain");
+  });
+
+  it("still accepts --all, which is now the default, and refuses it with --limit", async () => {
+    const all = harness({ env, responder: expiredIds(1500) });
+    expect(await all.run("expired", "--all", "--json")).toBe(0);
+    expect((JSON.parse(all.stdout()) as { job_ids: string[]; has_more: boolean }).job_ids).toHaveLength(1500);
+
+    const both = harness({ env, responder: expiredIds(1500) });
+    expect(await both.run("expired", "--all", "--limit", "10")).toBe(2);
+    expect(both.requests).toHaveLength(0);
+  });
+
   // The harness clock reads 2026-11-20T12:00:00Z.
   it.each([
     ["8d", "more than 7 days back"],
@@ -152,26 +184,46 @@ describe("jobo expired", () => {
 });
 
 describe("jobo company and companies", () => {
+  const COMPANY_ID = "b5e6f7a8-1234-5678-9abc-def012345678";
+
   it("fetches a company without a key, sending no X-Api-Key", async () => {
-    const h = harness({ responder: () => json(200, { id: "c1", name: "Acme", industries: ["Software"] }) });
-    expect(await h.run("company", "c1")).toBe(0);
-    expect(h.requests[0]?.url).toBe("https://connect.jobo.world/api/companies/c1");
+    const h = harness({ responder: () => json(200, { id: COMPANY_ID, name: "Acme", industries: ["Software"] }) });
+    expect(await h.run("company", COMPANY_ID)).toBe(0);
+    expect(h.requests[0]?.url).toBe(`https://connect.jobo.world/api/companies/${COMPANY_ID}`);
     expect(h.requests[0]?.headers).not.toHaveProperty("X-Api-Key");
     expect(h.requests[0]?.headers["X-Jobo-Client"]).toBe("cli");
     expect(JSON.parse(h.stdout())).toMatchObject({ name: "Acme" });
   });
 
   it("sends the key when one is configured, so a sandbox key gets sandbox companies", async () => {
-    const h = harness({ env: { JOBO_API_KEY: TEST_KEY }, responder: () => json(200, { id: "c1", name: "Acme" }) });
-    await h.run("company", "c1");
+    const h = harness({ env: { JOBO_API_KEY: TEST_KEY }, responder: () => json(200, { id: COMPANY_ID, name: "Acme" }) });
+    await h.run("company", COMPANY_ID);
     expect(h.requests[0]?.headers["X-Api-Key"]).toBe(TEST_KEY);
   });
 
   it("explains an unknown company (exit 6)", async () => {
     const h = harness({ responder: () => json(404, { title: "Not Found", status: 404 }) });
-    expect(await h.run("company", "nope")).toBe(6);
+    expect(await h.run("company", "0a1b2c3d-4e5f-6789-abcd-ef0123456789")).toBe(6);
     expect(h.stderr()).toContain("jobo companies");
   });
+
+  it.each(["stripe.com", "Stripe", "c1"])("refuses %s as a company id before any request, and names `jobo companies`", async (given) => {
+    const h = harness({ env, responder: () => json(404, { title: "Not Found", status: 404 }) });
+    expect(await h.run("company", given)).toBe(2);
+    expect(h.requests).toHaveLength(0);
+    expect(h.stderr()).toContain(`jobo company takes a company id`);
+    expect(h.stderr()).toContain(`\`jobo companies ${given}\``);
+    expect(h.stderr()).not.toContain("No company has that id");
+  });
+
+  it.each([COMPANY_ID, COMPANY_ID.toUpperCase(), COMPANY_ID.replace(/-/g, ""), `{${COMPANY_ID}}`])(
+    "accepts %s as a company id",
+    async (given) => {
+      const h = harness({ responder: () => json(200, { id: COMPANY_ID, name: "Acme" }) });
+      expect(await h.run("company", given)).toBe(0);
+      expect(h.requests).toHaveLength(1);
+    },
+  );
 
   it("suggests companies with their ids", async () => {
     const suggestions = [{ id: "c1", ids: ["c1", "c2"], name: "Stripe", domain: "stripe.com", country: "US", job_count: 412 }];

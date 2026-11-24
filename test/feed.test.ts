@@ -204,6 +204,98 @@ describe("jobo feed cursor persistence", () => {
     expect(h.stderr()).toContain("feed complete");
   });
 
+  describe("in a buffered format (--json, --table, -o x.json)", () => {
+    const insufficient = () =>
+      json(402, { error: "Insufficient credits", detail: "This request needs 300 credits ($0.30). Your wallet balance is 12 credits ($0.012)." });
+    const unavailable = () => json(503, { title: "Feed unavailable", status: 503 });
+
+    // Two good batches, then the failing one: a 402 is not retried, a 503 is tried three times.
+    it.each([
+      ["402", 4, insufficient, 3],
+      ["503 after the retries", 7, unavailable, 5],
+    ])("a later batch failing with %s writes the jobs it has, then saves the cursor that follows them", async (_name, exit, failure, requests) => {
+      const backend = feed(500);
+      const observed: Array<string | null> = [];
+      const h = harness({
+        env,
+        responder: (request, index) => {
+          const path = join(h.cwd, "feed.cursor");
+          observed.push(existsSync(path) ? readFileSync(path, "utf8").trim() : null);
+          return index < 2 ? backend(request) : failure();
+        },
+      });
+      const code = await h.run("feed", "--all", "--sources", "greenhouse", "--batch-size", "100", "--cursor-file", "feed.cursor", "--json");
+      expect(code).toBe(exit);
+      expect(h.requests).toHaveLength(requests);
+      // Nothing was written during the walk, so the file never moved ahead of the output.
+      expect(observed.every((value) => value === null)).toBe(true);
+      const document = JSON.parse(h.stdout()) as { jobs: Array<{ id: string }>; next_cursor: string; has_more: boolean; partial: boolean };
+      expect(document.partial).toBe(true);
+      expect(document.jobs.map((row) => row.id)).toEqual(Array.from({ length: 200 }, (_, index) => `f${index + 1}`));
+      expect(document.next_cursor).toBe("c200");
+      expect(readFileSync(join(h.cwd, "feed.cursor"), "utf8").trim()).toBe("c200");
+      expect(h.stderr()).toContain("200 jobs were delivered before the error. Resume with --cursor-file feed.cursor");
+
+      // The resume starts at the first job that was not written.
+      const resumed = harness({ env, responder: feed(500) });
+      writeFileSync(join(resumed.cwd, "feed.cursor"), readFileSync(join(h.cwd, "feed.cursor")));
+      expect(await resumed.run("feed", "--all", "--cursor-file", "feed.cursor", "--json")).toBe(0);
+      expect(resumed.body(0)).toEqual({ cursor: "c200" });
+      const rest = JSON.parse(resumed.stdout()) as { jobs: Array<{ id: string }> };
+      expect(rest.jobs[0]?.id).toBe("f201");
+      expect(rest.jobs).toHaveLength(300);
+      expect(existsSync(join(resumed.cwd, "feed.cursor"))).toBe(false);
+    });
+
+    it("keeps the partial file that -o x.json wrote", async () => {
+      const backend = feed(500);
+      const h = harness({ env, responder: (request, index) => (index === 0 ? backend(request) : insufficient()) });
+      const code = await h.run("feed", "--all", "--sources", "greenhouse", "--batch-size", "100", "--cursor-file", "feed.cursor", "-o", "jobs.json");
+      expect(code).toBe(4);
+      const document = JSON.parse(readFileSync(join(h.cwd, "jobs.json"), "utf8")) as { jobs: unknown[]; partial: boolean };
+      expect(document.partial).toBe(true);
+      expect(document.jobs).toHaveLength(100);
+      expect(readFileSync(join(h.cwd, "feed.cursor"), "utf8").trim()).toBe("c100");
+      expect(h.stderr()).toContain(`written to ${join(h.cwd, "jobs.json")}`);
+    });
+
+    it("a --table run that fails part-way prints the rows it has", async () => {
+      const backend = feed(500);
+      const h = harness({ env, responder: (request, index) => (index === 0 ? backend(request) : insufficient()) });
+      expect(await h.run("feed", "--all", "--sources", "greenhouse", "--batch-size", "100", "--cursor-file", "feed.cursor", "--table")).toBe(4);
+      expect(h.stdout()).toContain("Engineer f100");
+      expect(readFileSync(join(h.cwd, "feed.cursor"), "utf8").trim()).toBe("c100");
+    });
+
+    it("saves the cursor only after the document is written, and removes it when the scan completes", async () => {
+      const h = harness({ env, responder: feed(250) });
+      const path = join(h.cwd, "feed.cursor");
+      writeFileSync(path, "c0\n");
+      const write = h.io.stdout.write;
+      const atWrite: string[] = [];
+      h.io.stdout.write = async (chunk) => {
+        atWrite.push(readFileSync(path, "utf8").trim());
+        await write(chunk);
+      };
+      expect(await h.run("feed", "--all", "--batch-size", "100", "--cursor-file", "feed.cursor", "--json")).toBe(0);
+      expect(atWrite).toEqual(["c0"]);
+      expect(existsSync(path)).toBe(false);
+      expect((JSON.parse(h.stdout()) as { jobs: unknown[]; partial?: boolean }).partial).toBeUndefined();
+    });
+
+    it("leaves the cursor where it was when the output itself cannot be written", async () => {
+      const backend = feed(500);
+      const h = harness({ env, responder: (request, index) => (index === 0 ? backend(request) : insufficient()) });
+      writeFileSync(join(h.cwd, "feed.cursor"), "c0\n");
+      h.io.stdout.write = async () => {
+        throw new Error("disk full");
+      };
+      expect(await h.run("feed", "--all", "--batch-size", "100", "--cursor-file", "feed.cursor", "--json")).toBe(4);
+      expect(readFileSync(join(h.cwd, "feed.cursor"), "utf8").trim()).toBe("c0");
+      expect(h.stderr()).not.toContain("were delivered");
+    });
+  });
+
   it("keeps the cursor file when --max stops a scan that has more", async () => {
     const h = harness({ env, responder: feed(500) });
     await h.run("feed", "--max", "200", "--batch-size", "100", "--cursor-file", "feed.cursor");
@@ -228,6 +320,48 @@ describe("jobo feed errors", () => {
     expect(h.requests).toHaveLength(1);
     expect(h.sleeps).toEqual([]);
     expect(h.stderr()).toContain("start a new scan");
+  });
+
+  const restartRequired = () =>
+    json(409, {
+      title: "Feed cursor restart required",
+      status: 409,
+      code: "feed_cursor_restart_required",
+      replacement_request: { stable_scan: true, batch_size: 1000 },
+    });
+
+  it("moves a --cursor-file whose cursor needs a restart to FILE.dead, so the next run starts a new scan", async () => {
+    const h = harness({ env, responder: restartRequired });
+    const path = join(h.cwd, "feed.cursor");
+    writeFileSync(path, "legacy\n");
+    writeFileSync(`${path}.dead`, "an older dead cursor\n");
+    expect(await h.run("feed", "--all", "--sources", "greenhouse", "--cursor-file", "feed.cursor")).toBe(8);
+    expect(existsSync(path)).toBe(false);
+    expect(readFileSync(`${path}.dead`, "utf8").trim()).toBe("legacy");
+    expect(h.stderr()).toContain(`moved it to ${path}.dead`);
+    expect(h.stderr()).toContain("The scan must start again");
+
+    // The same command now starts a new scan with its filters.
+    const next = harness({ env, responder: feed(5) });
+    expect(await next.run("feed", "--all", "--sources", "greenhouse", "--cursor-file", join(h.cwd, "feed.cursor"))).toBe(0);
+    expect(next.body(0)).toEqual({ sources: ["greenhouse"], batch_size: 1000 });
+  });
+
+  it("moves the cursor file aside when a later batch's cursor needs a restart", async () => {
+    const backend = feed(500);
+    const h = harness({ env, responder: (request, index) => (index === 0 ? backend(request) : restartRequired()) });
+    expect(await h.run("feed", "--all", "--sources", "greenhouse", "--batch-size", "100", "--cursor-file", "feed.cursor")).toBe(8);
+    expect(lines(h.stdout())).toHaveLength(100);
+    expect(existsSync(join(h.cwd, "feed.cursor"))).toBe(false);
+    expect(readFileSync(join(h.cwd, "feed.cursor.dead"), "utf8").trim()).toBe("c100");
+  });
+
+  it("leaves a cursor file alone when the dead cursor came from --cursor", async () => {
+    const h = harness({ env, responder: restartRequired });
+    writeFileSync(join(h.cwd, "feed.cursor"), "c5\n");
+    expect(await h.run("feed", "--max", "10", "--cursor", "legacy", "--cursor-file", "feed.cursor")).toBe(8);
+    expect(readFileSync(join(h.cwd, "feed.cursor"), "utf8").trim()).toBe("c5");
+    expect(existsSync(join(h.cwd, "feed.cursor.dead"))).toBe(false);
   });
 
   it("treats 400 invalid_cursor as a cursor to discard (exit 8)", async () => {

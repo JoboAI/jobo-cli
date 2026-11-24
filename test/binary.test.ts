@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -77,6 +77,18 @@ describe("the built binary", () => {
               "x-ratelimit-remaining": "19",
             })
             .end(JSON.stringify({ jobs, total: 57, page: 1, page_size: body.page_size, total_pages: 19, facets: {} }));
+          return;
+        }
+        if (request.method === "POST" && request.url === "/api/jobs/feed") {
+          // One job, then a wallet that cannot cover the next batch: the run must end with exit 4.
+          const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { cursor?: string };
+          if (body.cursor) {
+            response.writeHead(402, { "content-type": "application/json" }).end(JSON.stringify({ error: "Insufficient credits", detail: "Top up your wallet." }));
+          } else {
+            response
+              .writeHead(200, { "content-type": "application/json" })
+              .end(JSON.stringify({ jobs: [job("feed-1")], next_cursor: "c1", has_more: true }));
+          }
           return;
         }
         response.writeHead(404, { "content-type": "application/problem+json" }).end(JSON.stringify({ title: "Not Found", status: 404 }));
@@ -210,6 +222,26 @@ describe("the built binary", () => {
     ]);
     expect(result.stderr).toContain("usage: 9 credits ($0.009) charged · wallet 4,991 credits ($4.991)");
     expect(result.stderr).toContain("3 of 57 matching jobs");
+  });
+
+  it("keeps running when the stderr reader goes away, and exits with the run's own code", async () => {
+    const home = mkdtempSync(join(tmpdir(), "jobo-cli-bin-"));
+    homes.push(home);
+    const child = spawn(process.execPath, [BIN, "feed", "--max", "3", "--batch-size", "1"], {
+      env: { PATH: process.env.PATH ?? "", HOME: home, XDG_CONFIG_HOME: join(home, "config"), JOBO_API_URL: apiUrl, JOBO_API_KEY: LIVE_KEY },
+      cwd: home,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    // Close the reading end of stderr before the CLI writes its first progress line.
+    child.stderr.destroy();
+    let stdout = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    const code = await new Promise<number | null>((resolve) => child.on("close", (exit) => resolve(exit)));
+    // The first batch is written, the second is refused for credits: exit 4, not the 0 of a run cut short.
+    expect(code).toBe(4);
+    expect(stdout.split("\n").filter(Boolean).map((line) => (JSON.parse(line) as { id: string }).id)).toEqual(["feed-1"]);
   });
 
   it("maps an API 401 to exit 3 end to end", async () => {

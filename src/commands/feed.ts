@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { JOB_FEED_FILTER_KEYS, type Job, type JobFeedParams } from "@jobo-ai/connector-core";
 
 import { flag, int, str, type CommandDef, type Ctx } from "../args";
-import { URLS, UsageError } from "../errors";
+import { EXIT, URLS, UsageError, describeError } from "../errors";
 import { feedFilterOptions, flagName, parseFeedFilters } from "../filters";
 import { JOB_CSV_COLUMNS, JOB_TABLE_COLUMNS } from "../jobs";
 import { emitRecords, openSink, resolveFormat } from "../output";
@@ -56,6 +56,19 @@ function saveCursor(path: string, cursor: string): void {
   const temp = `${path}.tmp`;
   writeFileSync(temp, `${cursor}\n`);
   renameSync(temp, path);
+}
+
+/**
+ * Move a cursor file the API will never continue to `<file>.dead`, replacing
+ * an older one. Left in place, it would fail a scheduled run the same way
+ * every time; moved aside, the same command starts a new scan, and the dead
+ * cursor is still there to look at.
+ */
+function setCursorAside(path: string): string {
+  const dead = `${path}.dead`;
+  rmSync(dead, { force: true });
+  renameSync(path, dead);
+  return dead;
 }
 
 /**
@@ -137,6 +150,28 @@ async function run(ctx: Ctx): Promise<number> {
   let nextCursor: string | null = cursor ?? null;
   let hasMore = true;
   let headerWritten = sink.continuing;
+  // Set once the buffered jobs have been handed to emitRecords: a failure after
+  // that must not write them a second time.
+  let flushed = false;
+
+  // The cursor file only ever moves past jobs that are already written. In a
+  // row format that is after every batch; in a JSON document or a table, where
+  // nothing is written until the end, it is after that one write (or after the
+  // partial write that an error leaves). A cursor saved ahead of its jobs would
+  // make a resume skip them, and they were already billed.
+  const persistCursor = (next: string | null) => {
+    if (!cursorPath) return;
+    if (next) saveCursor(cursorPath, next);
+    else rmSync(cursorPath, { force: true });
+  };
+  const emitBuffered = (partial: boolean) =>
+    emitRecords(ctx, sink, format, {
+      rows: buffered,
+      columns: JOB_TABLE_COLUMNS,
+      csvColumns: JOB_CSV_COLUMNS,
+      empty: "No jobs matched.",
+      envelope: (rows) => ({ jobs: rows, next_cursor: nextCursor, has_more: hasMore, ...(partial ? { partial: true } : {}) }),
+    });
 
   try {
     while (hasMore) {
@@ -172,10 +207,7 @@ async function run(ctx: Ctx): Promise<number> {
       const previous = cursor;
       hasMore = Boolean(data.has_more) && Boolean(data.next_cursor);
       nextCursor = hasMore ? data.next_cursor : null;
-      if (cursorPath) {
-        if (nextCursor) saveCursor(cursorPath, nextCursor);
-        else rmSync(cursorPath, { force: true });
-      }
+      if (streaming) persistCursor(nextCursor);
 
       if (batches === 1 && typeof data.estimated_total === "number") {
         note(ctx, `about ${formatNumber(data.estimated_total)} jobs match this feed`);
@@ -205,13 +237,9 @@ async function run(ctx: Ctx): Promise<number> {
     }
 
     if (!streaming) {
-      await emitRecords(ctx, sink, format, {
-        rows: buffered,
-        columns: JOB_TABLE_COLUMNS,
-        csvColumns: JOB_CSV_COLUMNS,
-        empty: "No jobs matched.",
-        envelope: (rows) => ({ jobs: rows, next_cursor: nextCursor, has_more: hasMore }),
-      });
+      flushed = true;
+      await emitBuffered(false);
+      persistCursor(nextCursor);
     }
 
     if (!hasMore) {
@@ -223,8 +251,34 @@ async function run(ctx: Ctx): Promise<number> {
       );
     }
   } catch (error) {
-    if (batches > 0 && nextCursor) {
-      note(ctx, `${formatNumber(delivered)} jobs were delivered before the error. Resume with ${cursorPath ? `--cursor-file ${cursorFile}` : `--cursor ${nextCursor}`}.`);
+    // The batches before the failure are billed. In a buffered format they are
+    // still in memory: write them, marked partial, and only then move the
+    // cursor file past them. If that write fails too, the cursor stays where it
+    // was, so a resume delivers those jobs again instead of skipping them.
+    let written = streaming;
+    if (!streaming && !flushed && batches > 0) {
+      try {
+        await emitBuffered(true);
+        persistCursor(nextCursor);
+        written = true;
+      } catch {
+        // The original error is the one to report.
+      }
+    }
+    if (written && batches > 0 && nextCursor) {
+      const where = sink.path ? ` and written to ${sink.path}` : "";
+      note(ctx, `${formatNumber(delivered)} jobs were delivered${where} before the error. Resume with ${cursorPath ? `--cursor-file ${cursorFile}` : `--cursor ${nextCursor}`}.`);
+    }
+    // A dead cursor fails the same way on every run. If it is the one in the
+    // cursor file, move the file aside so the same command starts a new scan.
+    if (cursorPath && cursor && describeError(error).exitCode === EXIT.CURSOR && existsSync(cursorPath)) {
+      if (readFileSync(cursorPath, "utf8").trim() === cursor) {
+        const dead = setCursorAside(cursorPath);
+        note(
+          ctx,
+          `The API will not continue the cursor in ${cursorPath}: moved it to ${dead}. The scan must start again; the next run of this command starts it from the beginning.`,
+        );
+      }
     }
     throw error;
   } finally {
@@ -243,7 +297,10 @@ export const feedCommand: CommandDef = {
     "Because the first sync of a broad feed bills every job in it, an explicit --max N or --all is required. --max is exact: the last batch is shrunk to fit. " +
     "--all with no filter, --body or cursor would sync the whole index: it is refused, with the job count and the most it could cost, unless you add --yes.\n\n" +
     "The next cursor is printed on stderr after every batch and, with --cursor-file, saved to that file once the batch's jobs are written, so a crashed run resumes where it stopped: run the same command again. " +
-    "The file is removed when the scan completes. Cursors do not expire. A cursor keeps the filters and batch size it was created with; filters given alongside one are ignored. " +
+    "With --json or --table the jobs are written once, at the end, and the file is saved after that; a run that fails part-way writes the jobs it has, marked partial, before saving it. " +
+    "A resumed scan can deliver a page again, so load the jobs by id. " +
+    "The file is removed when the scan completes. If the API will not continue its cursor (exit 8), it is moved to FILE.dead and the next run starts a new scan. " +
+    "Cursors do not expire. A cursor keeps the filters and batch size it was created with; filters given alongside one are ignored. " +
     "The wallet must cover a full batch before each request runs (3,000 credits for a batch of 1,000 with no plan), so use a smaller --batch-size on a low balance.\n\n" +
     "The feed's filters are its own: plural, structured, and with no text query. A flag in the singular works too (--work-model for --work-models), and a fixed value in any case. " +
     `Not available with a sandbox key. Build a filter set interactively at ${URLS.feedBuilder} and pass it with --body.`,

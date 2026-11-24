@@ -111,7 +111,7 @@ export function describeError(error: unknown, context: ErrorContext = {}): Descr
     return {
       message:
         "This feed cursor cannot be continued (a legacy stable_scan:false scan reached its 1,000,000-result limit). " +
-        "Discard it and start a new scan: run the command again without --cursor (and delete the --cursor-file).",
+        "Discard it and start a new scan: run the command again without --cursor (`jobo feed` has moved a --cursor-file that held it to FILE.dead).",
       exitCode: EXIT.CURSOR,
     };
   }
@@ -153,7 +153,7 @@ export function describeError(error: unknown, context: ErrorContext = {}): Descr
     if (error.status === 400 && error.code === "invalid_cursor") {
       return {
         message:
-          "The feed cursor could not be decoded. Discard it and start a new scan: run the command again without --cursor (and delete the --cursor-file).",
+          "The feed cursor could not be decoded. Discard it and start a new scan: run the command again without --cursor (`jobo feed` has moved a --cursor-file that held it to FILE.dead).",
         exitCode: EXIT.CURSOR,
       };
     }

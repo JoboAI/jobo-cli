@@ -423,6 +423,12 @@ describe("jobo completion", () => {
     expect(h.stdout()).toContain("jobo completion fish > ~/.config/fish/completions/jobo.fish");
   });
 
+  it("quotes the lookup timeout the code uses", async () => {
+    const h = harness();
+    expect(await h.run("completion", "--help")).toBe(0);
+    expect(h.stdout()).toMatch(/give up after\s+4\s+seconds/);
+  });
+
   it("refuses an unknown shell, and a missing one", async () => {
     const h = harness();
     expect(await h.run("completion", "powershell")).toBe(2);

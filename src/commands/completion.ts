@@ -105,7 +105,7 @@ export const completionCommand: CommandDef = {
   description:
     "Prints a completion script for your shell. TAB then completes commands, flags, fixed values (--work-model, --sort), facet names for `jobo filters` and client ids for `jobo mcp`, " +
     "and looks up live values with your saved key: ATS sources, industries and job categories (cached for ten minutes), skills, and companies (completed to their domain) and places as you type them. " +
-    "Those lookups use free endpoints only, give up after 1.5 seconds and stay silent when there is no key or no network. In a comma-separated value, the last item is completed.\n\n" +
+    "Those lookups use free endpoints only, give up after 4 seconds and stay silent when there is no key or no network. In a comma-separated value, the last item is completed.\n\n" +
     "Install it once:\n" +
     '- bash: add `eval "$(jobo completion bash)"` to ~/.bashrc.\n' +
     '- zsh: add `eval "$(jobo completion zsh)"` to ~/.zshrc, after compinit.\n' +

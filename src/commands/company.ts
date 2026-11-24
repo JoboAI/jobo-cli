@@ -15,10 +15,25 @@ function companyView(document: unknown): string {
   return toKeyValue(pairs) + summary;
 }
 
+/**
+ * A company id is a GUID: 32 hex digits, hyphenated or not, optionally in
+ * braces, which is what the route's `{id:guid}` constraint accepts.
+ */
+const COMPANY_ID = /^(?:\{[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9a-f]{32})$/i;
+
 async function runCompany(ctx: Ctx): Promise<number> {
   const id = ctx.positionals[0]?.trim();
   if (!id || ctx.positionals.length > 1) {
     throw new UsageError("Usage: jobo company <id>. The id is `company.id` on a job; find one with `jobo companies <name>`.");
+  }
+  // The route only matches a GUID, so a name or domain would come back as a
+  // plain 404 ("no company has that id"), which reads as if the company were
+  // not indexed. Say what the argument should be instead, before any request.
+  if (!COMPANY_ID.test(id)) {
+    throw new UsageError(
+      `jobo company takes a company id (a GUID such as b5e6f7a8-1234-5678-9abc-def012345678), not "${id}". ` +
+        `Find a company's ids from its name or domain with \`jobo companies ${id}\`.`,
+    );
   }
   const format = resolveFormat(ctx.values, ctx.io);
   const sink = openSink(ctx, format);
@@ -41,7 +56,8 @@ export const companyCommand: CommandDef = {
   summary: "Fetch one company profile by id (free, no key needed)",
   usage: ["<id>"],
   description:
-    "Runs GET /api/companies/{id}: industry, size and the career-site source Jobo reads the company from. Free, not rate limited, and it works without an API key.",
+    "Runs GET /api/companies/{id}: industry, size and the career-site source Jobo reads the company from. Free, not rate limited, and it works without an API key. " +
+    "The id is a GUID (`company.id` on a job); to start from a name or domain, look the ids up with `jobo companies <name or domain>`.",
   output: true,
   notFound: "No company has that id (or it is disabled). Find ids with `jobo companies <name>`.",
   examples: ["jobo company b5e6f7a8-1234-5678-9abc-def012345678", "jobo company b5e6f7a8-1234-5678-9abc-def012345678 --json"],

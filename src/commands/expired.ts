@@ -5,7 +5,6 @@ import { emitRecords, openSink, resolveFormat } from "../output";
 import { formatNumber, note, openSession } from "../session";
 
 const MAX_BATCH_SIZE = 10_000;
-const DEFAULT_LIMIT = 1000;
 /** The API answers 400 to an `expired_since` more than 7 days back, or in the future. */
 const MAX_WINDOW_DAYS = 7;
 const MAX_WINDOW_MS = MAX_WINDOW_DAYS * 86_400_000;
@@ -33,10 +32,14 @@ function windowStart(raw: string, now: Date): string {
 
 async function run(ctx: Ctx): Promise<number> {
   if (ctx.positionals.length > 0) throw new UsageError("jobo expired takes no arguments. Use --since for the start of the window.");
+  // Every id in the window by default: the endpoint is free, and a list cut
+  // short leaves closed jobs live in the caller's store while the run looks
+  // like a success. --limit is an opt-in cap; --all, the old way to ask for
+  // everything, is still accepted.
   const all = flag(ctx.values, "all");
   const requested = int(ctx.values, "limit", { min: 1 });
   if (all && requested !== undefined) throw new UsageError("Use --limit N or --all, not both.");
-  const limit = all ? Number.POSITIVE_INFINITY : (requested ?? DEFAULT_LIMIT);
+  const limit = requested ?? Number.POSITIVE_INFINITY;
 
   const since = str(ctx.values, "since");
   const expiredSince = since !== undefined ? windowStart(since, ctx.io.now()) : undefined;
@@ -83,10 +86,11 @@ async function run(ctx: Ctx): Promise<number> {
 export const expiredCommand: CommandDef = {
   name: "expired",
   summary: "List ids of jobs that expired recently (free)",
-  usage: ["[--since WHEN] [--limit N | --all] [--cursor CURSOR]"],
+  usage: ["[--since WHEN] [--limit N] [--cursor CURSOR]"],
   description:
     "Runs GET /api/jobs/expired: ids of jobs that stopped appearing on the employer's career site, so you can close them in your own store. " +
-    `Free; it counts toward the JobFeed rate limit. The window starts 24 hours ago unless --since says otherwise, and reaches back at most ${MAX_WINDOW_DAYS} days: an earlier --since is refused before anything is sent. Not available with a sandbox key.`,
+    `Free; it counts toward the JobFeed rate limit. The window starts 24 hours ago unless --since says otherwise, and reaches back at most ${MAX_WINDOW_DAYS} days: an earlier --since is refused before anything is sent. ` +
+    `Every page is walked, so the list holds every id in the window; --limit N stops early and prints the cursor to continue from. Not available with a sandbox key.`,
   options: {
     since: {
       type: "string",
@@ -97,12 +101,12 @@ export const expiredCommand: CommandDef = {
       type: "string",
       aliases: ["max"],
       value: "N",
-      description: `Most ids to return (default ${formatNumber(DEFAULT_LIMIT)}; also --max). Pages are walked as needed.`,
+      description: "Stop after N ids (also --max). Default: every id in the window.",
     },
-    all: { type: "boolean", description: "Return every id in the window." },
+    all: { type: "boolean", description: "Return every id in the window (the default; kept for older scripts)." },
     cursor: { type: "string", value: "CURSOR", description: "Continue from the `next cursor` of an earlier run." },
   },
   output: true,
-  examples: ["jobo expired --since 24h --jsonl", "jobo expired --since 2026-11-18T00:00:00Z --all --csv -o expired.csv"],
+  examples: ["jobo expired --since 24h --jsonl", "jobo expired --since 2026-11-18T00:00:00Z --csv -o expired.csv"],
   run,
 };

@@ -199,6 +199,12 @@ jobo feed --max 200 --body @feed.json --cursor-file feed.cursor -o jobs.jsonl --
   file once the batch's jobs are written. If the run dies, run the same command again: it resumes from
   the file. The file is removed when the scan completes. `--cursor CURSOR` resumes from a cursor you
   kept yourself. Cursors do not expire.
+- A resumed scan can deliver a page again (a crash between writing a batch and saving its cursor), so
+  with `--append` load the jobs by job id (an upsert), not as new rows.
+- With `--json` or `--table` the jobs are written once, at the end, and the cursor file is saved only
+  after that. If a later batch fails (a `402` when the balance runs out, a `503` after the retries), the
+  jobs already fetched are still written, with `"partial": true` in the JSON, and the cursor file then
+  points just past them.
 - A cursor keeps the filters and batch size of the scan it came from; filters given with one are ignored.
 - Filters are the feed's own (plural) fields, and it has no text query:
   - `--locations`, which has no exclude form. It takes `country=…[,region=…][,city=…]` or a bare country
@@ -215,7 +221,8 @@ jobo feed --max 200 --body @feed.json --cursor-file feed.cursor -o jobs.jsonl --
   [Feed Builder](https://jobo.world/api/feed-builder). Filter flags are merged over it.
 - Retries follow the API's rules: `429`, `500` and `503` are retried after `Retry-After`; `402` and a
   dead cursor (`400 invalid_cursor`, `409 feed_cursor_restart_required`) are not. A dead cursor exits 8:
-  discard it and start a new scan.
+  discard it and start a new scan. If it came from `--cursor-file FILE`, the file is moved to
+  `FILE.dead` (replacing an older one), so the next run of the same command starts the new scan.
 - Other formats: `--csv` streams too; `--json` and `--table` collect everything first.
 
 ### `jobo expired`
@@ -225,12 +232,13 @@ with a sandbox key.
 
 ```bash
 jobo expired --since 24h --jsonl
-jobo expired --since 2026-11-18T00:00:00Z --all --csv -o expired.csv
+jobo expired --since 2026-11-18T00:00:00Z --csv -o expired.csv
 ```
 
 The window starts 24 hours ago by default and reaches back at most 7 days: the API keeps expired ids no
-longer, so an earlier `--since` is refused before anything is sent. `--limit N` (default 1,000; also
-`--max`) caps the ids returned; `--all` returns the whole window.
+longer, so an earlier `--since` is refused before anything is sent. Every page is walked, so the output
+holds every id in the window. `--limit N` (also `--max`) stops after N ids and prints the cursor to
+continue from on stderr. `--all` is still accepted; it is now the default.
 
 ### `jobo company <id>` and `jobo companies <query>`
 
@@ -238,6 +246,9 @@ longer, so an earlier `--since` is refused before anything is sent. `--limit N` 
 jobo companies stripe          # name or domain prefix → ids, domain, country, live job count
 jobo company b5e6f7a8-1234-5678-9abc-def012345678
 ```
+
+`jobo company` takes a company id (a GUID, `company.id` on a job), not a name or domain: given
+`stripe.com`, it stops with a usage error that points to `jobo companies stripe.com`.
 
 Both are free; `jobo company` works without an API key. One company can have several ids, one per
 careers board, and `--companies` should get them all. `jobo companies` writes them the way the flag

@@ -60,8 +60,8 @@ These are real charges on the user's account. Follow them.
 | `jobo search [query] [filters]` | Search listings. `--page`, `--page-size` (1–100, default 10), `--max N` | Per job returned |
 | `jobo job <id>` | One full listing | Free |
 | `jobo feed (--max N \| --all) [filters]` | Bulk stream as JSONL, cursor-walked. `--cursor-file FILE` to resume | Per new job |
-| `jobo expired [--since 24h] [--limit N]` | Ids of jobs that expired. `--since` reaches back 7 days at most; more is refused | Free |
-| `jobo company <id>` | One company profile | Free |
+| `jobo expired [--since 24h] [--limit N]` | Every id of a job that expired in the window (all pages unless `--limit` caps it). `--since` reaches back 7 days at most; more is refused | Free |
+| `jobo company <id>` | One company profile. The id is a GUID; from a name or domain, use `jobo companies` first | Free |
 | `jobo companies <query>` | Company name or domain prefix → ids and live job counts, and the `--companies` value to paste | Free |
 | `jobo locations <query>` | Place name prefix → exact place names, and the feed's `--locations` value to paste | Free |
 | `jobo geocode <location>` | Place name → coordinates and normalized names | $0.001 |
@@ -170,6 +170,10 @@ filters, and `--locations` is `country=…[,region=…][,city=…]`, never free 
 jobo feed --max 500 --sources greenhouse,lever --work-models remote \
   --updated-after 24h --cursor-file feed.cursor --output jobs.jsonl --append
 ```
+
+A resumed scan can deliver a page again, so load the file by job id (upsert), not as new rows. If
+it exits 8, the cursor is dead: the CLI has moved the file to `feed.cursor.dead`, and running the
+same command again starts a new scan.
 
 The same for one city: look the place up first (free) and paste the value it prints:
 

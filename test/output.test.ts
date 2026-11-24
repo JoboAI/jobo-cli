@@ -249,7 +249,7 @@ describe("--output", () => {
   it("does the same for every command that writes a file", async () => {
     const commands = [
       ["job", "abc"],
-      ["company", "abc"],
+      ["company", "b5e6f7a8-1234-5678-9abc-def012345678"],
       ["companies", "stripe"],
       ["locations", "berlin"],
       ["geocode", "Berlin"],

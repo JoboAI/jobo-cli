@@ -76,14 +76,29 @@ export const fetchTransport: Transport = {
   },
 };
 
-function processStream(stream: NodeJS.WriteStream): OutputStream {
+/**
+ * What a closed pipe means depends on the stream. On stdout the reader has
+ * what it wanted (`| head`): stop now rather than fetch, and be billed for,
+ * output nobody will read. On stderr only the log reader went away: the data
+ * is still being written, so keep going and drop the log lines. Exiting there
+ * would end a feed mid-scan and report success.
+ */
+type OnClosedPipe = "exit" | "ignore";
+
+function processStream(stream: NodeJS.WriteStream, onClosedPipe: OnClosedPipe): OutputStream {
+  let closed = false;
   return {
     write: (chunk) =>
       new Promise<void>((resolve, reject) => {
+        if (closed) return resolve();
         stream.write(chunk, (error) => {
-          // The reader closed the pipe (`| head`): it has what it wanted. Stop
-          // now rather than fetch, and be billed for, output nobody will read.
-          if ((error as NodeJS.ErrnoException | null | undefined)?.code === "EPIPE") process.exit(0);
+          const code = (error as NodeJS.ErrnoException | null | undefined)?.code;
+          if (code === "EPIPE" && onClosedPipe === "exit") process.exit(0);
+          // A write already in flight when the pipe closed fails on the destroyed stream instead.
+          if (onClosedPipe === "ignore" && (code === "EPIPE" || code === "ERR_STREAM_DESTROYED")) {
+            closed = true;
+            return resolve();
+          }
           if (error) reject(error);
           else resolve();
         });
@@ -182,8 +197,8 @@ function onInterrupt(handler: () => void): () => void {
 
 export function realIo(): Io {
   return {
-    stdout: processStream(process.stdout),
-    stderr: processStream(process.stderr),
+    stdout: processStream(process.stdout, "exit"),
+    stderr: processStream(process.stderr, "ignore"),
     stdin: {
       get isTTY() {
         return Boolean(process.stdin.isTTY);
