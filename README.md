@@ -1,8 +1,8 @@
 # jobo-cli
 
 Command-line client for the [Jobo jobs API](https://jobo.world/docs): search live job listings from
-employer career sites and 200+ applicant tracking systems, stream the job feed, and look up companies,
-locations and filter values. It ships an [Agent Skill](#agent-skill) that teaches coding agents to use
+employer career sites and 200+ applicant tracking systems, stream the job feed, read hiring signals, and
+look up companies, locations and filter values. It ships an [Agent Skill](#agent-skill) that teaches coding agents to use
 it, and prints the setup for the hosted [MCP server](#mcp-server).
 
 ```bash
@@ -61,7 +61,7 @@ Which key a command uses, first match wins:
 3. the saved key
 
 Live keys start with `jbe_live_`. A sandbox key (`jbe_test_`) is free and returns fictional jobs in the
-real response shape; it serves `search`, `job` and `company` only.
+real response shape; it serves `search`, `job` and `company` only (not `signals`).
 
 ## What it costs
 
@@ -71,6 +71,7 @@ Jobo bills per job, not per request. Credits are the wallet's unit: 1,000 credit
 | --- | --- |
 | `jobo search` | Every job returned: $3.00 per 1,000 jobs (3 credits each) after your plan's included jobs. An empty page is free. |
 | `jobo feed` | Every job that is new to you: one you have not received through Feed, Export or Outbound in the last 30 days. Same rate. Jobs you already hold are delivered again at no charge. |
+| `jobo signals` | Every hiring signal returned, at ten times the price of a job: 30 credits ($0.03) each after your plan's included signals. A signal read again is billed again. An empty page is free. |
 | `jobo geocode` | $0.001 per lookup (1 credit), resolved or not. |
 | `jobo job`, `company`, `companies`, `locations`, `filters`, `occupations`, `expired`, `usage` | Free. |
 
@@ -80,6 +81,7 @@ The CLI is built so a mistake cannot run up a bill:
 
 - `jobo search` fetches one page of 10 unless you ask for more. `--max N` walks whole pages up to N jobs
   and stops; there is no unbounded search.
+- `jobo signals` reads 10 signals unless `--max N` says otherwise, and has no `--all`.
 - `jobo feed` refuses to run without `--max N` or `--all`, and `--all` with no filter (the whole index)
   also needs `--yes`: without it the CLI prints how many jobs that is and the most it could cost, then
   stops.
@@ -239,6 +241,52 @@ The window starts 24 hours ago by default and reaches back at most 7 days: the A
 longer, so an earlier `--since` is refused before anything is sent. Every page is walked, so the output
 holds every id in the window. `--limit N` (also `--max`) stops after N ids and prints the cursor to
 continue from on stderr. `--all` is still accepted; it is now the default.
+
+### `jobo signals`
+
+[Hiring signals](https://jobo.world/docs/guides/hiring-signals): one event at one company, detected
+from its job postings. A hiring surge, a first job in a country, a leadership search, a new technology,
+a slowdown. Not available with a sandbox key.
+
+```bash
+jobo signals --types hiring_surge,new_country --countries US --min-strength 70
+jobo signals --domains stripe.com,shopify.com --detected-after 30d --max 25 --csv -o signals.csv
+jobo signals --types hard_to_fill --functions Technology --seniority senior,director --job-countries US --jsonl
+jobo signals --company-id 6c1f0a9e-3b7d-4c55-8e21-5a4d9f0b7c33 --types leadership_hire
+```
+
+**Each signal returned is billed at ten times the price of a job** (30 credits, $0.03, after your plan's
+included signals), and a signal read again is billed again. A request that returns nothing is free.
+
+- `--max N` is how many signals to read: **10 unless you say otherwise**, and the first line on stderr
+  says so. Pages are walked until N is reached, and no page asks for more than is still wanted (200 at
+  most). There is no `--all`. When more remain, stderr prints the next cursor; `--cursor CURSOR` with the
+  same flags reads on.
+- One flag per filter, named like the API's query parameter: `--types`, `--domains`, `--company-ids`,
+  `--exclude-domains`, `--countries`, `--company-sizes`, `--industries`, `--categories`,
+  `--funding-stages`, `--founded-after`, `--exclude-agencies`, `--functions`, `--roles`, `--seniority`,
+  `--technologies`, `--skills`, `--technology-categories`, `--job-countries`, `--job-regions`,
+  `--job-cities`, `--min-strength`, `--min-new-jobs`, `--min-days-open`, `--reposted-only`,
+  `--detected-after`, `--detected-before`, `--created-after`. Lists take commas or a repeated flag, at
+  most 100 values. `--types`, `--seniority` and `--company-sizes` are checked, and completed, against
+  their fixed values.
+- `--company-id ID` reads one company. That endpoint takes only `--types`, `--min-strength`,
+  `--detected-after`, `--detected-before` and `--created-after`; the CLI refuses any other filter by
+  name before sending anything. To combine a company with other filters, use `--company-ids`.
+- Every record carries the API's fields plus `type_label` ("Hiring surge") and `summary` ("17 new jobs
+  this week vs 3.1 a week normally"), the wording Jobo's dashboard uses. The table shows the detection
+  day, company, type, strength and summary. A type the CLI does not know is shown by its name.
+- A request whose answer is lost (a timeout, a dropped connection, a 5xx) is not sent again: it may have
+  been billed. Only a `429` is retried. If a later page fails, the signals already read are written
+  (marked `"partial": true` in JSON) and stderr gives the cursor to read on from.
+
+To read only what is new, keep the newest `created_at` you received and pass it, minus five minutes, as
+`--created-after` on the next run; skip any `id` you already hold. The five minutes cover signals stored
+while the last run read, and the signals in that overlap are billed again.
+
+```bash
+jobo signals --domains stripe.com --created-after 2026-11-20T09:25:00Z --max 50 --jsonl -o new.jsonl --append
+```
 
 ### `jobo company <id>` and `jobo companies <query>`
 

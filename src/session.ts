@@ -1,7 +1,10 @@
 import {
+  InsufficientCreditsError,
   JoboApiError,
   JoboClient,
+  RateLimitError,
   isValidApiKeyFormat,
+  nextDelayMs,
   resolveRetryOptions,
   withRetry,
   type Transport,
@@ -149,6 +152,75 @@ export async function anonymousGet(ctx: Ctx, path: string): Promise<{ data: unkn
       body: parsed,
     });
   }, resolveRetryOptions({ sleep: retrySleep(ctx) }));
+}
+
+/** A response that is not 2xx, as the error class the shared client would throw for it. */
+function apiError(status: number, headers: Record<string, string>, body: string): JoboApiError {
+  let parsed: unknown = null;
+  try {
+    parsed = body === "" ? null : JSON.parse(body);
+  } catch {
+    parsed = body;
+  }
+  const field = (name: string) =>
+    parsed && typeof parsed === "object" && typeof (parsed as Record<string, unknown>)[name] === "string"
+      ? ((parsed as Record<string, unknown>)[name] as string)
+      : null;
+  const detail = field("detail") ?? field("error") ?? field("title");
+  const options = { status, message: detail ?? `Jobo API returned HTTP ${status}`, code: field("code"), detail, body: parsed };
+  if (status === 402) return new InsufficientCreditsError(options);
+  if (status === 429) {
+    const seconds = Number(headers["retry-after"]);
+    return new RateLimitError({ ...options, retryAfterSeconds: Number.isFinite(seconds) ? seconds : null });
+  }
+  return new JoboApiError(options);
+}
+
+/**
+ * `GET` a billed endpoint that the shared client has no method for (Hiring
+ * Signals, until connector-core 0.7.0 is on npm), on the session's key.
+ *
+ * Sent again only after a 429, which the API answers before it reads, let
+ * alone bills, anything. Never after a timeout, a dropped connection or a 5xx:
+ * the page may have been charged with its answer lost, and sending it again
+ * would charge it twice. Those surface at once for the command to explain.
+ */
+export async function billedGet(
+  ctx: Ctx,
+  session: Session,
+  pathAndQuery: string,
+): Promise<{ data: unknown; headers: Record<string, string> }> {
+  const transport = recording(ctx.io.transport, ctx);
+  const retry = resolveRetryOptions({ sleep: retrySleep(ctx) });
+  for (let attempt = 1; ; attempt++) {
+    const response = await transport.request({
+      method: "GET",
+      url: `${session.apiUrl}${pathAndQuery}`,
+      headers: {
+        Accept: "application/json",
+        "X-Api-Key": session.key.key,
+        "User-Agent": USER_AGENT,
+        "X-Jobo-Client": CLIENT_NAME,
+      },
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+    });
+    if (response.status >= 200 && response.status < 300) {
+      let data: unknown = null;
+      try {
+        data = response.body === "" ? null : JSON.parse(response.body);
+      } catch {
+        // A 2xx that is not JSON was still answered, and may have been billed: report it, never resend it.
+        throw new JoboApiError({
+          status: response.status,
+          message: `The Jobo API answered HTTP ${response.status} with a body that is not JSON.`,
+        });
+      }
+      return { data, headers: response.headers };
+    }
+    const error = apiError(response.status, response.headers, response.body);
+    if (!(error instanceof RateLimitError) || attempt >= retry.maxAttempts) throw error;
+    await retry.sleep(nextDelayMs(error, attempt, retry));
+  }
 }
 
 // ── Cost reporting ───────────────────────────────────────────────────────────

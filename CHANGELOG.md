@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.5.0
+
+Hiring Signals from the command line.
+
+### Added
+
+- **`jobo signals`:** reads `GET /api/signals`, or one company's signals with `--company-id ID`. A
+  signal is one event at one company, detected from its job postings: a hiring surge, a first job in a
+  country, a leadership search. Every filter of the API is a flag named like its query parameter
+  (`--types`, `--domains`, `--functions`, `--job-regions`, `--min-strength`, `--created-after`, …).
+  `--types`, `--seniority` and `--company-sizes` are checked before anything is sent and completed by
+  the shell completion. With `--company-id`, a filter that endpoint does not take is refused by name.
+- **Each signal is billed at ten times the price of a job, and a signal read again is billed again**, so
+  `--max N` reads 10 unless you say otherwise, the first stderr line says how many at most, and no page
+  asks for more than is still wanted. There is no `--all`. The next cursor is printed when more remain,
+  and `--cursor` reads on.
+- Every record carries `type_label` and a one-sentence `summary` ("17 new jobs this week vs 3.1 a week
+  normally"), the wording Jobo's dashboard uses, in a table, JSON, JSONL or CSV. An unknown type is shown
+  by its name. Each page prints its usage line: credits charged, wallet, and included signals left.
+- `--help`, the README, the docs and the bundled Agent Skill say how to read only what is new: pass the
+  newest `created_at` received, minus five minutes, as `--created-after`, and skip ids already held.
+
+### Safety
+
+- **A signals request whose answer was lost is never sent again.** A timeout, a dropped connection or
+  a 5xx may have been billed, so the run stops and says to check `jobo usage`; only a `429` is retried.
+  Signals read before a failure are written (marked `"partial": true` in JSON) with the cursor to read on
+  from. A `402`, `403 account_key_required` and the sandbox `404` each have their own message.
+
+The signals filter list and the summary wording are local copies of connector-core 0.7.0's, which is not
+on npm yet; a test holds them to `contracts/signals.json`.
+
 ## 0.4.0
 
 Fixes for runs that ended early, or looked finished when they were not.

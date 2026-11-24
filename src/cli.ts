@@ -20,6 +20,7 @@ import { loginCommand } from "./commands/login";
 import { mcpCommand } from "./commands/mcp";
 import { occupationsCommand } from "./commands/occupations";
 import { searchCommand } from "./commands/search";
+import { signalsCommand } from "./commands/signals";
 import { skillCommand } from "./commands/skill";
 import { usageCommand } from "./commands/usage";
 import { COMPLETE_COMMAND, runComplete } from "./complete";
@@ -36,6 +37,7 @@ export const COMMANDS: readonly CommandDef[] = [
   jobCommand,
   feedCommand,
   expiredCommand,
+  signalsCommand,
   companyCommand,
   companiesCommand,
   locationsCommand,
@@ -67,6 +69,7 @@ export function rootHelp(): string {
     "",
     wrap(
       "Cost: search bills every job it returns and the feed every job that is new to you, at $3.00 per 1,000 jobs after your plan's included jobs. " +
+        "Hiring signals bill every signal returned, at ten times the price of a job, and a signal read again is billed again. " +
         "Job, company, location and filter lookups are free. Each billed request prints what it cost on stderr.",
       100,
     ),

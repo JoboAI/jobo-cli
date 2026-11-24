@@ -1,6 +1,6 @@
 ---
 name: jobo-job-search
-description: Search live job listings and job-market data with the `jobo` command-line tool (Jobo jobs API). Use when the user wants to find or filter open jobs by title, location, remote or hybrid, skills, salary, company, industry or seniority; fetch a job posting or company by id; export or sync jobs to JSON, JSONL or CSV; list jobs that expired; or connect the Jobo MCP server to an AI client.
+description: Search live job listings and job-market data with the `jobo` command-line tool (Jobo jobs API). Use when the user wants to find or filter open jobs by title, location, remote or hybrid, skills, salary, company, industry or seniority; fetch a job posting or company by id; export or sync jobs to JSON, JSONL or CSV; list jobs that expired; read hiring signals (a company's hiring surge, first job in a country, leadership search); or connect the Jobo MCP server to an AI client.
 ---
 
 # Jobo job search (`jobo` CLI)
@@ -23,7 +23,7 @@ https://enterprise.jobo.world/api-keys. Never print a key, and do not put one in
 the user: use the saved key or the environment variable.
 
 A sandbox key (`jbe_test_…`) is free and returns fictional jobs. It only serves `search`, `job` and
-`company`; every other command answers "not available with a sandbox key" (exit 6).
+`company`; every other command, `signals` included, answers "not available with a sandbox key" (exit 6).
 
 ## Cost rules
 
@@ -47,9 +47,15 @@ These are real charges on the user's account. Follow them.
    prints "about N jobs match this feed" on stderr. `--all` with no filter at all means the whole
    index: the CLI refuses it (exit 2) and prints the job count and the most it could cost. Show the
    user that message; add `--yes` only after they have confirmed that cost.
-6. **Do not repeat a billed call to reformat it.** Save the output (`-o results.json`) and work
+6. **`jobo signals` bills every signal it returns at ten times the price of a job** (30 credits,
+   $0.03, once the plan's included signals are used), and **a signal read again is billed again**.
+   It reads 10 signals unless `--max N` says otherwise; ask for what the user needs. To check for
+   new signals, use `--created-after` (below), never a fresh read from the top. A run that fails on a
+   timeout or a 5xx is not retried by the CLI, because the page may have been billed: do not rerun
+   it blindly; check `jobo usage` and tell the user.
+7. **Do not repeat a billed call to reformat it.** Save the output (`-o results.json`) and work
    from the file.
-7. After a billed call, a `usage:` line on stderr says what was charged and the wallet balance.
+8. After a billed call, a `usage:` line on stderr says what was charged and the wallet balance.
    Mention the cost when it is not trivial. On exit code 4 (insufficient credits) stop and pass the
    top-up link in the error to the user; retrying fails the same way.
 
@@ -61,6 +67,7 @@ These are real charges on the user's account. Follow them.
 | `jobo job <id>` | One full listing | Free |
 | `jobo feed (--max N \| --all) [filters]` | Bulk stream as JSONL, cursor-walked. `--cursor-file FILE` to resume | Per new job |
 | `jobo expired [--since 24h] [--limit N]` | Every id of a job that expired in the window (all pages unless `--limit` caps it). `--since` reaches back 7 days at most; more is refused | Free |
+| `jobo signals [filters] [--max N]` | Hiring signals: one event at one company (a surge, a first job in a country, a leadership search), with a one-sentence summary. `--company-id ID` for one company | Per signal returned, at 10× a job |
 | `jobo company <id>` | One company profile. The id is a GUID; from a name or domain, use `jobo companies` first | Free |
 | `jobo companies <query>` | Company name or domain prefix → ids and live job counts, and the `--companies` value to paste | Free |
 | `jobo locations <query>` | Place name prefix → exact place names, and the feed's `--locations` value to paste | Free |
@@ -181,6 +188,28 @@ The same for one city: look the place up first (free) and paste the value it pri
 jobo locations austin                   # → feed: --locations "country=United States,region=Texas,city=Austin"
 jobo feed --max 200 --locations "country=United States,region=Texas,city=Austin" \
   --job-subcategories Nursing --cursor-file austin.cursor --output austin-nursing.jsonl --append
+```
+
+Hiring signals at a few companies, last 30 days, at most 20 (each one billed):
+
+```bash
+jobo signals --domains stripe.com,shopify.com --detected-after 30d --max 20 \
+  --fields detected_on,company.name,type_label,strength,summary --json
+```
+
+Signal filters are the API's names as flags: `--types` (hiring_surge, new_country, leadership_hire,
+hard_to_fill, …), `--domains`, `--company-ids`, `--countries`, `--company-sizes`, `--industries`,
+`--functions`, `--roles`, `--seniority`, `--technologies`, `--job-countries`, `--job-regions`,
+`--min-strength` and more (`jobo signals --help`). With `--company-id ID`, only `--types`,
+`--min-strength`, `--detected-after`, `--detected-before` and `--created-after` are taken; the CLI
+refuses the rest before sending anything. Each record carries `type_label` and `summary`. An unknown
+`type` is shown by its name, not an error.
+
+Only what is new since the last read: keep the newest `created_at` received, pass it minus five
+minutes as `--created-after`, and skip ids already held (the overlap is billed again):
+
+```bash
+jobo signals --domains stripe.com --created-after 2026-11-20T09:25:00Z --max 50 --jsonl -o new.jsonl --append
 ```
 
 Connect an AI client to a hosted Jobo MCP server. Coding agents and IDEs get the developer server (free
