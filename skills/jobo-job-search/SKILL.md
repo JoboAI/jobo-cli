@@ -50,9 +50,9 @@ These are real charges on the user's account. Follow them.
 6. **`jobo signals` bills every signal it returns at ten times the price of a job** (30 credits,
    $0.03, once the plan's included signals are used), and **a signal read again is billed again**.
    It reads 10 signals unless `--max N` says otherwise; ask for what the user needs. To check for
-   new signals, use `--created-after` (below), never a fresh read from the top. A run that fails on a
-   timeout or a 5xx is not retried by the CLI, because the page may have been billed: do not rerun
-   it blindly; check `jobo usage` and tell the user.
+   new signals, use `--sort created_asc --created-after` (below), never a fresh read from the top.
+   A run that fails on a timeout or a 5xx is not retried by the CLI, because the page may have been
+   billed: do not rerun it blindly; check `jobo usage` and tell the user.
 7. **Do not repeat a billed call to reformat it.** Save the output (`-o results.json`) and work
    from the file.
 8. After a billed call, a `usage:` line on stderr says what was charged and the wallet balance.
@@ -205,12 +205,19 @@ hard_to_fill, …), `--domains`, `--company-ids`, `--countries`, `--company-size
 refuses the rest before sending anything. Each record carries `type_label` and `summary`. An unknown
 `type` is shown by its name, not an error.
 
-Only what is new since the last read: keep the newest `created_at` received, pass it minus five
-minutes as `--created-after`, and skip ids already held (the overlap is billed again):
+Only what is new since the last read: read in stored order (`--sort created_asc`) and pass the
+`created_at` of the last signal read as `--created-after`, exactly as it came (it has microseconds; do
+not round or reformat it). Nothing is read or billed twice. After each such read, stderr prints
+`continue from: --created-after …` with the value to keep for next time:
 
 ```bash
-jobo signals --domains stripe.com --created-after 2026-11-20T09:25:00Z --max 50 --jsonl -o new.jsonl --append
+jobo signals --domains stripe.com --sort created_asc --created-after 2026-11-24T13:53:55.837281Z --max 50 --jsonl -o new.jsonl --append
 ```
+
+The first time, start from a time (`--created-after 24h`), not from nothing: without
+`--created-after`, stored order starts at the oldest signal Jobo holds, and every signal read is billed.
+Signals stored before 2026-11-24 share one `created_at` per batch: while stderr prints a next cursor,
+read on with `--cursor` and the same flags until no more remain.
 
 Connect an AI client to a hosted Jobo MCP server. Coding agents and IDEs get the developer server (free
 lookups and a request builder, API key header); assistants get the job search server (OAuth sign-in,

@@ -1,6 +1,6 @@
 {
   "name": "jobo-cli",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Command-line client for the Jobo jobs API: search live job listings from employer career sites and 200+ ATS platforms, stream the job feed, and look up companies, locations and filter values.",
   "type": "module",
   "bin": {

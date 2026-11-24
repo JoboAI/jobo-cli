@@ -6,8 +6,8 @@
  * `SIGNAL_TYPE_LABELS` / `describeSignal` (connector-core `signal-summary.ts`),
  * with the same wording, which is the wording Jobo's dashboard uses. The CLI
  * pins connector-core 0.5.0, which has no signals; once core 0.7.0 is on npm
- * all of this can become imports. `test/signals.test.ts` holds the filter and
- * type lists to `contracts/signals.json`, the file generated from core.
+ * all of this can become imports. `test/signals.test.ts` holds the filter,
+ * type and sort lists to `contracts/signals.json`, the file generated from core.
  *
  * Signals are billed per signal returned, at ten times a job, and a signal
  * read again is billed again.
@@ -35,6 +35,21 @@ export const SIGNAL_TYPES = [
 
 /** `seniority` values, lowest first. */
 export const SIGNAL_SENIORITY = ["junior", "mid", "senior", "director", "vp", "c_level", "executive"] as const;
+
+/**
+ * `sort` values, the default first (connector-core `SIGNAL_SORTS`).
+ *
+ * `detected_desc` is the newest detection day first: the order to browse in.
+ * `created_asc` is the order signals were stored in, oldest first: the order
+ * to read only what is new in, because with `created_after` set to the
+ * `created_at` of the last signal read (the exact string) the next page is the
+ * next signals stored, and none comes twice. A `next_cursor` belongs to the
+ * order it was issued under.
+ */
+export const SIGNAL_SORTS = ["detected_desc", "created_asc"] as const;
+export const SIGNAL_DEFAULT_SORT = "detected_desc";
+/** The order to read only what is new in. */
+export const SIGNAL_POLL_SORT = "created_asc";
 
 /** Signals per page: `limit` runs from 1 to this, and defaults to 50. */
 export const SIGNAL_MAX_LIMIT = 200;
@@ -259,7 +274,7 @@ export const HIRING_SIGNAL_FILTERS: readonly SignalFilterDescriptor[] = [
     label: "Created After",
     kind: "dateTime",
     description:
-      "Only signals first stored after this instant, exclusive. To read what is new, pass the newest created_at already received.",
+      "Only signals first stored after this instant, exclusive. To read what is new, read in stored order and pass the created_at of the last signal received, unchanged.",
     company: true,
   },
 ];

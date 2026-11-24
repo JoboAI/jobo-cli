@@ -11,7 +11,10 @@ import {
   SIGNAL_DEFAULT_LIMIT,
   SIGNAL_MAX_LIMIT,
   SIGNAL_MAX_LIST_VALUES,
+  SIGNAL_DEFAULT_SORT,
+  SIGNAL_POLL_SORT,
   SIGNAL_SENIORITY,
+  SIGNAL_SORTS,
   SIGNAL_TYPES,
   SIGNAL_TYPE_LABELS,
   describeSignal,
@@ -65,9 +68,11 @@ describe("the local signals contract", () => {
       enums: Record<string, string[]>;
       type_labels: Record<string, string>;
       limits: { default_limit: number; max_limit: number; max_list_values: number };
+      sort: { values: string[]; default: string; poll: string };
       filters: Array<Record<string, unknown>>;
       company_filter_keys: string[];
     };
+    expect({ values: [...SIGNAL_SORTS], default: SIGNAL_DEFAULT_SORT, poll: SIGNAL_POLL_SORT }).toEqual(repo.sort);
     expect([...SIGNAL_TYPES]).toEqual(repo.enums.signal_types);
     expect([...SIGNAL_SENIORITY]).toEqual(repo.enums.seniority);
     expect({ ...SIGNAL_TYPE_LABELS }).toEqual(repo.type_labels);
@@ -213,6 +218,114 @@ describe("jobo signals: --max", () => {
     const h = harness({ responder: signals(4), env });
     expect(await h.run("signals", "--all")).toBe(2);
     expect(h.requests).toHaveLength(0);
+  });
+});
+
+/** Signals in stored order: signal n was stored at 13:53:55.837280 plus n microseconds. Cursor `c<offset>`. */
+const storedAt = (n: number) => `2026-11-24T13:53:55.${837280 + n}Z`;
+function storedSignals(total: number) {
+  return (request: TransportRequest) => {
+    const url = new URL(request.url);
+    const offset = Number((url.searchParams.get("cursor") ?? "c0").slice(1));
+    const limit = Number(url.searchParams.get("limit") ?? SIGNAL_DEFAULT_LIMIT);
+    const count = Math.max(0, Math.min(limit, total - offset));
+    const page = Array.from({ length: count }, (_, index) => signal(`s${offset + index + 1}`, { created_at: storedAt(offset + index + 1) }));
+    const next = offset + count;
+    return json(200, { signals: page, next_cursor: next < total ? `c${next}` : null, has_more: next < total }, BILLING);
+  };
+}
+
+describe("jobo signals: --sort and reading only what is new", () => {
+  const EXACT = "2026-11-24T13:53:55.837281Z";
+
+  it("sends --created-after exactly as typed, microseconds and all", async () => {
+    const h = harness({ responder: storedSignals(0), env });
+    expect(await h.run("signals", "--domains", "stripe.com", "--sort", "created_asc", "--created-after", EXACT, "--jsonl")).toBe(0);
+    expect(params(h).created_after).toBe(EXACT);
+    expect(url(h).search).toContain(`created_after=${encodeURIComponent(EXACT)}&`);
+    // An offset, and seven decimals, are not touched either.
+    expect(await h.run("signals", "--domains", "stripe.com", "--created-after", "2026-11-24T15:53:55.8372810+02:00", "--jsonl")).toBe(0);
+    expect(params(h, 1).created_after).toBe("2026-11-24T15:53:55.8372810+02:00");
+  });
+
+  it("sends sort=created_asc on every page of one --max, and leaves the default out", async () => {
+    const h = harness({ responder: storedSignals(1000), env });
+    expect(await h.run("signals", "--domains", "stripe.com", "--sort", "created_asc", "--created-after", EXACT, "--max", "250", "--jsonl")).toBe(0);
+    expect(h.requests).toHaveLength(2);
+    expect(h.requests.map((_, index) => [params(h, index).sort, params(h, index).created_after, params(h, index).cursor])).toEqual([
+      ["created_asc", EXACT, undefined],
+      ["created_asc", EXACT, "c200"],
+    ]);
+
+    const byDefault = harness({ responder: storedSignals(3), env });
+    expect(await byDefault.run("signals", "--domains", "stripe.com", "--sort", "detected_desc", "--jsonl")).toBe(0);
+    expect(params(byDefault)).toEqual({ domains: "stripe.com", limit: "10" });
+    expect(await byDefault.run("signals", "--domains", "stripe.com", "--jsonl")).toBe(0);
+    expect(params(byDefault, 1).sort).toBeUndefined();
+  });
+
+  it("takes --sort with --company-id", async () => {
+    const h = harness({ responder: storedSignals(2), env });
+    expect(await h.run("signals", "--company-id", COMPANY, "--sort", "Created_Asc", "--created-after", EXACT)).toBe(0);
+    expect(url(h).pathname).toBe(`/api/companies/${COMPANY}/signals`);
+    expect(params(h)).toEqual({ created_after: EXACT, sort: "created_asc", limit: "10" });
+  });
+
+  it("refuses an unknown sort before any request", async () => {
+    const h = harness({ responder: storedSignals(2), env });
+    expect(await h.run("signals", "--domains", "stripe.com", "--sort", "newest")).toBe(2);
+    expect(h.requests).toHaveLength(0);
+    expect(h.stderr()).toContain('--sort: unknown value "newest".');
+    expect(h.stderr()).toContain("Valid values: detected_desc, created_asc.");
+  });
+
+  it("writes created_at exactly as the API sent it, in JSON, JSONL and CSV", async () => {
+    for (const format of ["--json", "--jsonl", "--csv"]) {
+      const h = harness({ responder: storedSignals(1), env });
+      expect(await h.run("signals", "--domains", "stripe.com", "--sort", "created_asc", "--created-after", "24h", format)).toBe(0);
+      expect(h.stdout(), format).toContain(storedAt(1));
+      expect(h.stdout(), format).not.toContain("continue from");
+    }
+  });
+
+  it("in stored order, says on stderr where the next run continues: the last created_at, as sent", async () => {
+    const h = harness({ responder: storedSignals(3), env });
+    expect(await h.run("signals", "--domains", "stripe.com", "--sort", "created_asc", "--created-after", EXACT, "--jsonl")).toBe(0);
+    expect(h.stderr()).toContain(`continue from: --created-after ${storedAt(3)}`);
+    expect(h.stderr()).not.toContain("next cursor");
+    expect(h.stdout()).not.toContain("continue from");
+  });
+
+  it("in stored order with more waiting, gives the cursor first and the created_at for later", async () => {
+    const h = harness({ responder: storedSignals(30), env });
+    expect(await h.run("signals", "--domains", "stripe.com", "--sort", "created_asc", "--created-after", EXACT, "--max", "5", "--jsonl")).toBe(0);
+    expect(h.stderr()).toContain("more remain. next cursor: c5");
+    expect(h.stderr()).toContain(`last created_at read: ${storedAt(5)}. More remain, so read on with --cursor and the same flags`);
+    expect(h.stderr()).toContain(`--sort created_asc --created-after ${storedAt(5)}`);
+    expect(h.stderr()).not.toContain("continue from:");
+  });
+
+  it("in stored order with nothing new, keeps the same --created-after", async () => {
+    const h = harness({ responder: storedSignals(0), env });
+    expect(await h.run("signals", "--domains", "stripe.com", "--sort", "created_asc", "--created-after", EXACT, "--jsonl")).toBe(0);
+    expect(h.stderr()).toContain(`nothing new. continue from: --created-after ${EXACT}`);
+  });
+
+  it("does not offer --created-after as a place to resume in the default order", async () => {
+    const h = harness({ responder: storedSignals(30), env });
+    expect(await h.run("signals", "--domains", "stripe.com", "--created-after", EXACT, "--max", "5", "--jsonl")).toBe(0);
+    expect(h.stderr()).toContain("more remain. next cursor: c5");
+    expect(h.stderr()).not.toContain("continue from");
+    expect(h.stderr()).not.toContain("last created_at");
+  });
+
+  it("warns that stored order without --created-after starts at the oldest signal", async () => {
+    const h = harness({ responder: storedSignals(2), env });
+    expect(await h.run("signals", "--domains", "stripe.com", "--sort", "created_asc", "--jsonl")).toBe(0);
+    expect(h.stderr()).toContain("starts at the oldest signal Jobo holds, and every one read is billed");
+    const timed = harness({ responder: storedSignals(2), env });
+    expect(await timed.run("signals", "--domains", "stripe.com", "--sort", "created_asc", "--created-after", "24h", "--jsonl")).toBe(0);
+    expect(timed.stderr()).not.toContain("oldest signal");
   });
 });
 
@@ -416,6 +529,8 @@ describe("jobo signals: completion", () => {
     expect(await candidates(h, "signals", "--types", "hiring")).toEqual(["hiring_surge", "hiring_slowdown", "hiring_freeze", "hiring_resumed"]);
     expect(await candidates(h, "signals", "--seniority", "")).toEqual([...SIGNAL_SENIORITY]);
     expect(await candidates(h, "signals", "--company-sizes", "5")).toEqual(["51-200", "501-1000", "5001-10000"]);
+    expect(await candidates(h, "signals", "--so")).toEqual(["--sort"]);
+    expect(await candidates(h, "signals", "--sort", "")).toEqual([...SIGNAL_SORTS]);
     expect(h.requests).toHaveLength(0);
   });
 });
@@ -428,7 +543,12 @@ describe("jobo signals --help", () => {
     expect(help).toContain("A hiring signal is one event at one company, detected from its job postings");
     expect(help).toContain("each signal returned is billed at ten times the price of a job");
     expect(help).toContain("A signal read again is billed again.");
-    expect(help).toContain("minus five minutes, as --created-after");
+    expect(help).toContain("--sort created_asc --created-after VALUE, where VALUE is the created_at of the last signal you read, used exactly as it came");
+    expect(help).toContain("no signal is read or billed twice");
+    expect(help).toContain("without --created-after, stored order starts at the oldest signal Jobo holds");
+    expect(help).toContain("read on with --cursor and the same flags until no more remain");
+    expect(help).not.toContain("five minutes");
+    expect(help).toContain("--sort <ORDER>");
     expect(help).toContain("--types <LIST>");
   });
 });

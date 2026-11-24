@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.6.0
+
+Reading only the hiring signals that are new, without reading or paying for any twice.
+
+### Added
+
+- **`jobo signals --sort ORDER`**, with or without `--company-id`: `detected_desc` (the default, newest
+  detection day first, and not sent) or `created_asc` (the order Jobo stored the signals in, oldest
+  first). Any other value is refused before anything is sent. Every page of one `--max` carries the same
+  sort, since a cursor belongs to the order it was issued under.
+- After a read in stored order, stderr says where the next run continues: `continue from:
+  --created-after VALUE`, the `created_at` of the last signal read exactly as the API sent it. When more
+  signals are waiting, it gives the next cursor first, since signals stored before 2026-11-24 share one
+  `created_at` per batch and only a cursor continues inside one. In the default order no such value is
+  offered: there it is not a safe place to resume. Stdout is unchanged, so JSON, JSONL and CSV stay clean.
+- `--sort created_asc` without `--created-after` warns on stderr that the read starts at the oldest
+  signal Jobo holds, and that every signal read is billed.
+
+### Changed
+
+- **The recipe for reading only what is new** in `--help`, the README, the docs and the bundled Agent
+  Skill: `--sort created_asc --created-after VALUE`, where VALUE is the `created_at` of the last signal
+  read, used as it came. Nothing is read or billed twice. The old advice (the newest `created_at` minus
+  five minutes, skipping ids already held, and paying again for the overlap) is gone.
+- `--created-after` with an exact instant is documented and tested to reach the API as typed: a
+  `created_at` has microseconds (`2026-11-24T13:53:55.837281Z`), and a value rounded to milliseconds
+  would read and bill again the signals stored in the rest of that millisecond. JSON, JSONL and CSV
+  carry `created_at` as the API sent it.
+
+The two sort values are local copies of connector-core's `SIGNAL_SORTS`; a test holds them to
+`contracts/signals.json`. Needs the API's `sort` parameter (JoboAI/jobo#1543).
+
 ## 0.5.0
 
 Hiring Signals from the command line.

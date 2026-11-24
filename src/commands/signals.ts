@@ -15,6 +15,9 @@ import {
   HIRING_SIGNAL_FILTERS,
   SIGNAL_MAX_LIMIT,
   SIGNAL_MAX_LIST_VALUES,
+  SIGNAL_DEFAULT_SORT,
+  SIGNAL_POLL_SORT,
+  SIGNAL_SORTS,
   describeSignal,
   signalTypeLabel,
   type HiringSignal,
@@ -41,7 +44,7 @@ const FLAG_HELP: Readonly<Record<string, string>> = {
   detected_before: `Latest detection day, inclusive: yyyy-MM-dd, ${AGE_HINT}.`,
   created_after:
     "Only signals first stored after this instant, exclusive: ISO 8601 with seconds (2026-11-12T09:30:00Z; a bare date means midnight UTC), " +
-    `${AGE_HINT}. To read what is new, pass the newest created_at you hold, minus five minutes.`,
+    `${AGE_HINT}. An instant is sent exactly as typed. To read only what is new, use it with --sort created_asc and pass the created_at of the last signal read, as it came.`,
 };
 
 function filterOption(filter: SignalFilterDescriptor): OptionSpec {
@@ -107,6 +110,11 @@ function parseDay(raw: string, label: string, now: Date): string {
   return raw;
 }
 
+/**
+ * An instant for the query. An exact one goes out as typed, never through a
+ * Date: `created_at` has microseconds, and a value rounded to milliseconds
+ * would read (and bill) again the signals stored in the rest of that millisecond.
+ */
 function parseInstant(raw: string, label: string, now: Date): string {
   const ago = age(raw, now);
   if (ago) return ago.toISOString();
@@ -342,6 +350,9 @@ async function run(ctx: Ctx): Promise<number> {
     }
   }
   const filters = signalsQuery(ctx);
+  // Checked against SIGNAL_SORTS by the parser. The default is not sent, as core's toSignalsQuery does.
+  const sort = str(ctx.values, "sort") ?? SIGNAL_DEFAULT_SORT;
+  const stored = sort === SIGNAL_POLL_SORT;
   const requestedMax = int(ctx.values, "max", { min: 1 });
   const max = requestedMax ?? DEFAULT_MAX_SIGNALS;
   const startCursor = str(ctx.values, "cursor");
@@ -358,6 +369,13 @@ async function run(ctx: Ctx): Promise<number> {
     `cost: reads at most ${formatNumber(max)} signal${max === 1 ? "" : "s"}${requestedMax === undefined ? ` (the default; --max N for more)` : ` (--max ${formatNumber(max)})`}. ` +
       "Each signal returned is billed at ten times the price of a job, and a signal read again is billed again.",
   );
+  if (stored && filters.created_after === undefined && startCursor === undefined) {
+    note(
+      ctx,
+      "warning: --sort created_asc without --created-after starts at the oldest signal Jobo holds, and every one read is billed. " +
+        "To read only what is new, start from a time (--created-after 24h, or the created_at of the last signal you read).",
+    );
+  }
 
   const buffered: SignalRecord[] = [];
   const seen = new Set<string>();
@@ -368,6 +386,8 @@ async function run(ctx: Ctx): Promise<number> {
   let pageSize = Math.min(SIGNAL_MAX_LIMIT, max);
   let headerWritten = sink.continuing;
   let flushed = false;
+  /** The created_at of the last signal received, exactly as the API sent it. */
+  let lastCreatedAt: string | undefined;
 
   const emit = (rows: readonly SignalRecord[], partial: boolean) =>
     emitRecords(ctx, { ...sink, continuing: headerWritten }, format, {
@@ -387,7 +407,13 @@ async function run(ctx: Ctx): Promise<number> {
     while (seen.size < max) {
       // A page never asks for more than is still wanted: every signal on it is billed.
       pageSize = Math.min(SIGNAL_MAX_LIMIT, max - seen.size);
-      const query = { ...filters, limit: String(pageSize), ...(cursor !== undefined ? { cursor } : {}) };
+      // Every page carries the same sort: a cursor belongs to the order it was issued under.
+      const query = {
+        ...filters,
+        ...(sort !== SIGNAL_DEFAULT_SORT ? { sort } : {}),
+        limit: String(pageSize),
+        ...(cursor !== undefined ? { cursor } : {}),
+      };
       const { data, headers } = await billedGet(ctx, session, `${path}${queryString(query)}`);
       pages++;
       const page = (data ?? {}) as { signals?: HiringSignal[] | null; next_cursor?: string | null; has_more?: boolean };
@@ -395,6 +421,7 @@ async function run(ctx: Ctx): Promise<number> {
 
       const fresh: SignalRecord[] = [];
       for (const signal of received) {
+        if (typeof signal.created_at === "string" && signal.created_at !== "") lastCreatedAt = signal.created_at;
         if (seen.has(signal.id)) continue;
         seen.add(signal.id);
         fresh.push(toRecord(signal));
@@ -428,6 +455,22 @@ async function run(ctx: Ctx): Promise<number> {
     if (hasMore && nextCursor) {
       note(ctx, `more remain. next cursor: ${nextCursor}  (the same flags with --cursor ${nextCursor} reads on; each is billed)`);
     }
+    // Only in stored order is the last created_at a place to resume: in the
+    // default order the next signals stored can be older or newer than it.
+    if (stored) {
+      if (lastCreatedAt !== undefined) {
+        note(
+          ctx,
+          hasMore && nextCursor
+            ? `last created_at read: ${lastCreatedAt}. More remain, so read on with --cursor and the same flags. ` +
+                `For signals stored since 2026-11-24, --sort created_asc --created-after ${lastCreatedAt} continues at the same place; ` +
+                "older signals share one created_at per batch, and only the cursor continues inside one."
+            : `continue from: --created-after ${lastCreatedAt}  (with --sort created_asc and the same filters, the next run reads only signals stored after the last one here; none is read or billed twice)`,
+        );
+      } else if (filters.created_after !== undefined && startCursor === undefined) {
+        note(ctx, `nothing new. continue from: --created-after ${filters.created_after}  (unchanged)`);
+      }
+    }
   } catch (error) {
     // The pages before the failure are billed. Hand them over, then fail.
     if (pages > 0) {
@@ -455,7 +498,10 @@ async function run(ctx: Ctx): Promise<number> {
 export const signalsCommand: CommandDef = {
   name: "signals",
   summary: "Read hiring signals (billed per signal, at ten times a job; --max defaults to 10)",
-  usage: ["[filters] [--max N] [--cursor CURSOR]", "--company-id ID [--types LIST] [--min-strength N] [--detected-after WHEN] [--created-after WHEN]"],
+  usage: [
+    "[filters] [--sort ORDER] [--max N] [--cursor CURSOR]",
+    "--company-id ID [--types LIST] [--min-strength N] [--detected-after WHEN] [--created-after WHEN] [--sort ORDER]",
+  ],
   description:
     "Runs GET /api/signals, or GET /api/companies/{id}/signals with --company-id. A hiring signal is one event at one company, detected from its job postings: " +
     "a hiring surge, a first job in a country, a leadership search, a new technology, a slowdown. Each comes with a type label and a one-sentence summary.\n\n" +
@@ -463,12 +509,15 @@ export const signalsCommand: CommandDef = {
     `A signal read again is billed again. A request that returns nothing is free. --max N is how many signals to read, ${DEFAULT_MAX_SIGNALS} unless you say otherwise; ` +
     `pages are walked until it is reached, and no page asks for more than is still wanted (at most ${SIGNAL_MAX_LIMIT}). There is no --all. ` +
     "When more remain, the next cursor is printed; --cursor CURSOR reads on with the same flags. A request whose answer is lost (a timeout, a dropped connection, a 5xx) is not sent again, since it may have been billed.\n\n" +
-    "To read only what is new: keep the newest created_at you have received, and on the next run pass it, minus five minutes, as --created-after; skip any id you already hold. " +
-    "The five-minute overlap covers signals stored while the last run read, and the signals inside it are billed again.\n\n" +
+    "To read only what is new, read in stored order: --sort created_asc --created-after VALUE, where VALUE is the created_at of the last signal you read, used exactly as it came " +
+    "(it has microseconds; the CLI sends it unchanged). That run reads the signals stored after it, oldest first, and no signal is read or billed twice. " +
+    "After every read in stored order, stderr gives the value to continue from. Start the first read from a time, such as --created-after 24h: " +
+    "without --created-after, stored order starts at the oldest signal Jobo holds, and every signal read is billed. " +
+    "Signals stored before 2026-11-24 share one created_at per batch, so while stderr prints a next cursor, read on with --cursor and the same flags until no more remain.\n\n" +
     "Every filter is optional, and they combine with AND; a list matches any of its values, and no value may contain a comma. " +
     "The focus filters (--functions, --roles, --seniority, --technologies, --skills, --technology-categories, --job-countries, --job-regions, --job-cities) say what a signal must be about: " +
     "a signal is returned when it agrees with each focus filter its type carries and its type carries at least one of those set, so a hiring_slowdown never matches one. " +
-    "Pages run newest detection day first. More signal types may be added; an unknown type is shown with its name. Not available with a sandbox key.",
+    "Pages run newest detection day first unless --sort created_asc says otherwise. More signal types may be added; an unknown type is shown with its name. Not available with a sandbox key.",
   options: {
     ...signalFilterOptions(),
     "company-id": {
@@ -484,7 +533,21 @@ export const signalsCommand: CommandDef = {
       description: `How many signals to read (default ${DEFAULT_MAX_SIGNALS}; also --limit). Every one is billed, so this is the most a run costs.`,
       group: "Paging",
     },
-    cursor: { type: "string", value: "CURSOR", description: "Read on from the `next cursor` of an earlier run, with the same flags.", group: "Paging" },
+    cursor: {
+      type: "string",
+      value: "CURSOR",
+      description: "Read on from the `next cursor` of an earlier run, with the same flags (the same --sort: a cursor belongs to its order).",
+      group: "Paging",
+    },
+    sort: {
+      type: "string",
+      value: "ORDER",
+      choices: SIGNAL_SORTS,
+      description:
+        `The order of the signals: ${SIGNAL_DEFAULT_SORT} (the default), newest detection day first; or ${SIGNAL_POLL_SORT}, the order they were stored in, oldest first, ` +
+        "which with --created-after reads only what is new.",
+      group: "Paging",
+    },
   },
   output: true,
   examples: [
@@ -492,7 +555,7 @@ export const signalsCommand: CommandDef = {
     "jobo signals --domains stripe.com,shopify.com --detected-after 30d --max 25 --csv -o signals.csv",
     'jobo signals --types hard_to_fill --functions Technology --seniority senior,director --job-countries US --jsonl',
     "jobo signals --company-id 6c1f0a9e-3b7d-4c55-8e21-5a4d9f0b7c33 --types leadership_hire",
-    "jobo signals --domains stripe.com --created-after 2026-11-20T09:25:00Z --max 50 --jsonl -o new.jsonl --append",
+    "jobo signals --domains stripe.com --sort created_asc --created-after 2026-11-24T13:53:55.837281Z --max 50 --jsonl -o new.jsonl --append",
   ],
   run,
 };

@@ -262,6 +262,9 @@ included signals), and a signal read again is billed again. A request that retur
   says so. Pages are walked until N is reached, and no page asks for more than is still wanted (200 at
   most). There is no `--all`. When more remain, stderr prints the next cursor; `--cursor CURSOR` with the
   same flags reads on.
+- `--sort ORDER` picks the order: `detected_desc` (the default) is the newest detection day first;
+  `created_asc` is the order Jobo stored the signals in, oldest first. A cursor belongs to the order it
+  was printed under, so read on with the same `--sort`.
 - One flag per filter, named like the API's query parameter: `--types`, `--domains`, `--company-ids`,
   `--exclude-domains`, `--countries`, `--company-sizes`, `--industries`, `--categories`,
   `--funding-stages`, `--founded-after`, `--exclude-agencies`, `--functions`, `--roles`, `--seniority`,
@@ -280,13 +283,21 @@ included signals), and a signal read again is billed again. A request that retur
   been billed. Only a `429` is retried. If a later page fails, the signals already read are written
   (marked `"partial": true` in JSON) and stderr gives the cursor to read on from.
 
-To read only what is new, keep the newest `created_at` you received and pass it, minus five minutes, as
-`--created-after` on the next run; skip any `id` you already hold. The five minutes cover signals stored
-while the last run read, and the signals in that overlap are billed again.
+To read only what is new, read in stored order with `--sort created_asc`, and pass the `created_at` of
+the last signal you read as `--created-after`, exactly as it came: it has microseconds, and the CLI sends
+it unchanged. The run reads the signals stored after that one, oldest first, and no signal is read or
+billed twice. After each read in stored order, stderr prints the value to continue from
+(`continue from: --created-after …`), so you can keep it without parsing the output.
 
 ```bash
-jobo signals --domains stripe.com --created-after 2026-11-20T09:25:00Z --max 50 --jsonl -o new.jsonl --append
+jobo signals --domains stripe.com --sort created_asc --created-after 2026-11-24T13:53:55.837281Z --max 50 --jsonl -o new.jsonl --append
 ```
+
+Start the first read from a time, such as `--created-after 24h`. Without `--created-after`, stored order
+starts at the oldest signal Jobo holds, and every signal read is billed. Signals stored before 2026-11-24
+were stored in batches that share one `created_at`, and a time cannot resume inside such a batch: while
+stderr prints a next cursor, read on with `--cursor` and the same flags until no more remain, then go
+back to `--created-after`.
 
 ### `jobo company <id>` and `jobo companies <query>`
 
